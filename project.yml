@@ -13,7 +13,7 @@ packages:
     exactVersion: 2.9.1
   CotabbyInference:
     url: https://github.com/FuJacob/cotabbyinference.git
-    branch: main
+    revision: 87193cda6d3385960c15e0da47d4d5f8b7b4732a
   swift-log:
     url: https://github.com/apple/swift-log.git
     from: 1.12.1

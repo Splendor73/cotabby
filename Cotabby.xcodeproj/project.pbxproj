@@ -3080,8 +3080,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/FuJacob/cotabbyinference.git";
 			requirement = {
-				branch = main;
-				kind = branch;
+				kind = revision;
+				revision = 87193cda6d3385960c15e0da47d4d5f8b7b4732a;
 			};
 		};
 		D8563066187C38DAA4206016 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
