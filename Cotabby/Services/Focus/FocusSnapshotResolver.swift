@@ -947,11 +947,40 @@ struct FocusSnapshotResolver {
 
         let trailingText: String
         if afterLength > 0 {
-            trailingText = AXHelper.parameterizedStringValue(
+            let nativeTrailingText = AXHelper.parameterizedStringValue(
                 for: kAXStringForRangeParameterizedAttribute as CFString,
                 range: NSRange(location: afterStart, length: afterLength),
                 on: element
-            ) ?? ""
+            )
+
+            if AXTrailingTextRecovery.needsRecovery(
+                afterLength: afterLength, nativeTrailingText: nativeTrailingText
+            ) {
+                // Chromium/Electron contenteditables answer the before/selected ranges but return
+                // nil or empty for the trailing range even though `documentLength` proves
+                // characters follow the caret. Coalescing that lie to "" made the caret look
+                // end-of-line and let inline ghost text paint over the user's real text. Recover
+                // like the sibling reads do — from the full value — but slice only the capped
+                // trailing window so a huge document does not flood the snapshot. The extra
+                // `AXValue` round-trip is paid only on this broken-host branch.
+                if let fullSelection = fullTextSelection() {
+                    if let recoveredTrailingText = AXTrailingTextRecovery.slicedTrailingText(
+                        fullText: fullSelection.text, afterStart: afterStart, afterLength: afterLength
+                    ) {
+                        trailingText = recoveredTrailingText
+                    } else {
+                        // The value disagrees with the host's own advertised length; the whole
+                        // value is the only self-consistent story left.
+                        return fullSelection
+                    }
+                } else {
+                    // No recovery source at all: keep the windowed read rather than dropping the
+                    // snapshot; downstream still gets before/selected context.
+                    trailingText = ""
+                }
+            } else {
+                trailingText = nativeTrailingText ?? ""
+            }
         } else {
             trailingText = ""
         }
