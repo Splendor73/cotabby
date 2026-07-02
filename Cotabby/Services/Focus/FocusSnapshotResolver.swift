@@ -306,6 +306,7 @@ struct FocusSnapshotResolver {
             trailingText: nsValue.substring(from: trailingStart),
             selection: contextWindow.selection,
             isSecure: resolvedCandidate.isSecure,
+            isTrailingTextReliable: resolvedCandidate.isTrailingTextReliable,
             isIntegratedTerminal: isIntegratedTerminal,
             isWebContentField: isWebContentField,
             focusChangeSequence: focusChangeSequence,
@@ -865,6 +866,7 @@ struct FocusSnapshotResolver {
             role: role,
             subrole: subrole,
             textValue: textValue,
+            isTrailingTextReliable: textSelection?.isTrailingTextReliable ?? true,
             selection: selection,
             caretRect: caretRect,
             caretQuality: caretQuality,
@@ -946,6 +948,7 @@ struct FocusSnapshotResolver {
         }
 
         let trailingText: String
+        var isTrailingTextReliable = true
         if afterLength > 0 {
             let nativeTrailingText = AXHelper.parameterizedStringValue(
                 for: kAXStringForRangeParameterizedAttribute as CFString,
@@ -975,8 +978,14 @@ struct FocusSnapshotResolver {
                     }
                 } else {
                     // No recovery source at all: keep the windowed read rather than dropping the
-                    // snapshot; downstream still gets before/selected context.
+                    // snapshot, but flag the trailing text as unreadable so end-of-line detection
+                    // does not mistake it for empty and paint inline ghost text over real text.
+                    CotabbyLogger.focus.debug(
+                        "Trailing text unreadable despite advertised characters",
+                        metadata: ["after_length": .stringConvertible(afterLength)]
+                    )
                     trailingText = ""
+                    isTrailingTextReliable = false
                 }
             } else {
                 trailingText = nativeTrailingText ?? ""
@@ -991,7 +1000,8 @@ struct FocusSnapshotResolver {
             selection: NSRange(
                 location: (beforeText as NSString).length,
                 length: (selectedText as NSString).length
-            )
+            ),
+            isTrailingTextReliable: isTrailingTextReliable
         )
     }
 
@@ -1027,6 +1037,10 @@ private struct FocusedElementReading {
 private struct AXTextSelection {
     let text: String
     let selection: NSRange
+    /// False when the host advertised trailing characters but neither the parameterized read nor
+    /// the full-value recovery could produce them; the empty trailing text in `text` then means
+    /// "unreadable", not "empty". Defaulted so every other construction site stays truthful.
+    var isTrailingTextReliable: Bool = true
 }
 
 /// AX data read from one candidate element near the current focus.
@@ -1037,6 +1051,9 @@ private struct AXFocusCandidate {
     let role: String
     let subrole: String?
     let textValue: String?
+    /// See `AXTextSelection.isTrailingTextReliable`; carried so snapshot assembly can tell an
+    /// unreadable trailing range apart from a genuinely empty one.
+    let isTrailingTextReliable: Bool
     let selection: NSRange?
     let caretRect: CGRect?
     let caretQuality: CaretGeometryQuality?

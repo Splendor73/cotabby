@@ -230,6 +230,10 @@ struct FocusedInputContext: Equatable, Sendable {
     let trailingText: String
     let selection: NSRange
     let isSecure: Bool
+    /// False when the trailing range was unreadable despite the host advertising characters
+    /// there (see `FocusedInputSnapshot.isTrailingTextReliable`). Carried through so end-of-line
+    /// detection treats "unreadable" differently from "empty".
+    let isTrailingTextReliable: Bool
     /// Whether the field's text is rendered by a web engine (see `WebContentFieldDetector`),
     /// carried through so the presentation-time caret repair can scope estimator authority to
     /// hosts whose AX caret geometry actually needs repairing.
@@ -265,6 +269,7 @@ struct FocusedInputContext: Equatable, Sendable {
         trailingText = snapshot.trailingText
         selection = snapshot.selection
         isSecure = snapshot.isSecure
+        isTrailingTextReliable = snapshot.isTrailingTextReliable
         isWebContentField = snapshot.isWebContentField
         resolvedFieldStyle = snapshot.resolvedFieldStyle
         windowTitle = snapshot.windowTitle
@@ -285,8 +290,11 @@ struct FocusedInputContext: Equatable, Sendable {
     /// True when the caret is at the end of its line (only whitespace, if anything, before the next
     /// line break). Derived from `trailingText` via `CaretLinePosition`; used to decide when a
     /// mid-line completion strategy like fill-in-middle applies versus a plain forward continuation.
+    /// An unreadable trailing range (`isTrailingTextReliable == false`) is never end-of-line: the
+    /// host said characters follow the caret, so claiming line-final would let inline ghost text
+    /// paint over them.
     var isCaretAtEndOfLine: Bool {
-        CaretLinePosition.isAtEndOfLine(trailingText: trailingText)
+        isTrailingTextReliable && CaretLinePosition.isAtEndOfLine(trailingText: trailingText)
     }
 
     /// Stable per-process key for the focused field, intentionally NOT including the input frame

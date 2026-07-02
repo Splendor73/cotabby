@@ -170,6 +170,15 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     let selection: NSRange
     let isSecure: Bool
 
+    /// False when the host advertised characters after the caret but every way of reading them
+    /// failed (Chromium/Electron contenteditables answer the before/selected ranges yet return
+    /// nothing for the trailing range, and some also refuse the full `AXValue`). An empty
+    /// `trailingText` with this flag false means "unreadable", not "empty" — end-of-line
+    /// detection must not treat the caret as line-final, or inline ghost text paints over text
+    /// the resolver simply could not see. The initializer default keeps existing call sites
+    /// compiling unchanged.
+    let isTrailingTextReliable: Bool
+
     /// True when the resolved field is an xterm.js integrated-terminal surface (VS Code / Cursor /
     /// Windsurf terminal, or a browser-hosted web terminal). Set by `FocusSnapshotResolver` from the
     /// focused element's `AXDOMClassList`. Lets the availability gate suppress ghost text in the
@@ -242,6 +251,7 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         trailingText: String,
         selection: NSRange,
         isSecure: Bool,
+        isTrailingTextReliable: Bool = true,
         isIntegratedTerminal: Bool = false,
         isWebContentField: Bool = false,
         focusChangeSequence: UInt64 = 0,
@@ -266,6 +276,7 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         self.trailingText = trailingText
         self.selection = selection
         self.isSecure = isSecure
+        self.isTrailingTextReliable = isTrailingTextReliable
         self.isIntegratedTerminal = isIntegratedTerminal
         self.isWebContentField = isWebContentField
         self.focusChangeSequence = focusChangeSequence
