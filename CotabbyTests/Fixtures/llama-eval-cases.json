@@ -2704,5 +2704,291 @@
     "first"
    ]
   }
+ },
+ {
+  "id": "midline-email-edit-01",
+  "tags": [
+   "midline",
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Hi Dana,\n\nQuick update on the vendor contract: legal finished their review and flagged two ",
+  "trailingText": " that we need to resolve before Friday's signing deadline.",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "clauses",
+    "issues",
+    "items",
+    "sections",
+    "concerns",
+    "points",
+    "open questions",
+    "minor issues"
+   ]
+  }
+ },
+ {
+  "id": "midline-email-edit-02",
+  "tags": [
+   "midline",
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Hi team,\n\nThe onsite is confirmed for the ",
+  "trailingText": " of March, so please book travel by the end of this week.",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "second week",
+    "first week",
+    "third week",
+    "last week",
+    "12th",
+    "week"
+   ]
+  }
+ },
+ {
+  "id": "midline-doc-insert-01",
+  "tags": [
+   "midline",
+   "prose",
+   "en"
+  ],
+  "applicationName": "Pages",
+  "bundleIdentifier": "com.apple.iWork.Pages",
+  "precedingText": "The pilot program ran for six weeks across three regional offices. Participation was ",
+  "trailingText": " which exceeded our original enrollment target by a wide margin.",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "strong",
+    "very strong",
+    "high",
+    "excellent",
+    "consistently high",
+    "well above expectations"
+   ]
+  }
+ },
+ {
+  "id": "midline-doc-insert-02",
+  "tags": [
+   "midline",
+   "prose",
+   "en"
+  ],
+  "applicationName": "Pages",
+  "bundleIdentifier": "com.apple.iWork.Pages",
+  "precedingText": "Renewals held steady through the quarter, but new bookings slowed in ",
+  "trailingText": ", so the forecast for Q4 assumes a longer sales cycle.",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "September",
+    "August",
+    "the final month",
+    "late summer",
+    "October"
+   ]
+  }
+ },
+ {
+  "id": "midline-notes-gap-01",
+  "tags": [
+   "midline",
+   "docs",
+   "en"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "Grocery run after work: milk, eggs, coffee, ",
+  "trailingText": ", and something quick for dinner tomorrow.",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "bread",
+    "butter",
+    "cheese",
+    "bananas",
+    "yogurt",
+    "rice",
+    "pasta"
+   ]
+  }
+ },
+ {
+  "id": "midline-notes-gap-02",
+  "tags": [
+   "midline",
+   "docs",
+   "en"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "Interview debrief: strong on system design, communicated tradeoffs clearly, a bit ",
+  "trailingText": " on the coding round but recovered well once given a hint.",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "slow",
+    "shaky",
+    "nervous",
+    "hesitant",
+    "rusty",
+    "rough"
+   ]
+  }
+ },
+ {
+  "id": "midline-chat-insert-01",
+  "tags": [
+   "midline",
+   "chat",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "can you review my PR before ",
+  "trailingText": "? it unblocks the release branch",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "standup",
+    "lunch",
+    "eod",
+    "end of day",
+    "the meeting",
+    "tomorrow",
+    "you head out",
+    "5"
+   ]
+  }
+ },
+ {
+  "id": "midline-chat-insert-02",
+  "tags": [
+   "midline",
+   "chat",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "the dashboard is down for ",
+  "trailingText": " while we rotate the database credentials, ping me if anything looks stuck after that",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "about an hour",
+    "an hour",
+    "maintenance",
+    "a few minutes",
+    "the next hour",
+    "30 minutes",
+    "a bit"
+   ]
+  }
+ },
+ {
+  "id": "midline-code-comment-01",
+  "tags": [
+   "midline",
+   "code",
+   "en"
+  ],
+  "applicationName": "Xcode",
+  "bundleIdentifier": "com.apple.dt.Xcode",
+  "precedingText": "// Retry the upload with exponential backoff because the ",
+  "trailingText": " occasionally drops connections during peak hours.",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "server",
+    "API",
+    "backend",
+    "upstream service",
+    "CDN",
+    "network",
+    "storage service"
+   ]
+  }
+ },
+ {
+  "id": "midline-code-comment-02",
+  "tags": [
+   "midline",
+   "code",
+   "en"
+  ],
+  "applicationName": "Xcode",
+  "bundleIdentifier": "com.apple.dt.Xcode",
+  "precedingText": "Fix the race condition in the ",
+  "trailingText": " so concurrent saves no longer clobber each other's changes.",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "session manager",
+    "cache layer",
+    "save path",
+    "sync engine",
+    "settings store",
+    "persistence layer",
+    "autosave logic"
+   ]
+  }
+ },
+ {
+  "id": "midline-sentence-splice-01",
+  "tags": [
+   "midline",
+   "prose",
+   "en"
+  ],
+  "applicationName": "TextEdit",
+  "bundleIdentifier": "com.apple.TextEdit",
+  "precedingText": "We compared three approaches and chose the ",
+  "trailingText": " because it required no schema changes and shipped a week earlier.",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "simplest one",
+    "second",
+    "third",
+    "first",
+    "simplest",
+    "middle option",
+    "incremental approach"
+   ]
+  }
+ },
+ {
+  "id": "midline-sentence-splice-02",
+  "tags": [
+   "midline",
+   "prose",
+   "en"
+  ],
+  "applicationName": "TextEdit",
+  "bundleIdentifier": "com.apple.TextEdit",
+  "precedingText": "The workshop covers the basics in the morning and moves on to ",
+  "trailingText": " after lunch, so bring a laptop with the toolchain already installed.",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "hands-on exercises",
+    "advanced topics",
+    "the practical session",
+    "group projects",
+    "live coding",
+    "more advanced material"
+   ]
+  }
  }
 ]

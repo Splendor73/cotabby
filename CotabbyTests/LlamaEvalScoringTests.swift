@@ -151,6 +151,24 @@ final class LlamaEvalScoringTests: XCTestCase {
         }
     }
 
+    // Positive mid-line coverage is what a right-context (FIM) engine change is measured
+    // against: the caret sits mid-document, a good continuation exists, and it must not
+    // duplicate the text after the caret. Without these cases every trailing-text entry in
+    // the dataset is a suppression test, so a prefix-only engine scores identically to one
+    // that actually reads the suffix.
+    func testDatasetCoversPositiveMidlineCases() throws {
+        let midline = try loadDataset().filter {
+            $0.expectation.kind == .positive && !$0.trailingText.isEmpty
+        }
+        XCTAssertGreaterThanOrEqual(
+            midline.count, 10,
+            "dataset needs positive mid-line (non-empty trailingText) cases"
+        )
+        for evalCase in midline {
+            XCTAssertTrue(evalCase.tags.contains("midline"), "\(evalCase.id) missing midline tag")
+        }
+    }
+
     // MARK: - Report aggregation
 
     func testReportMetrics() {
