@@ -233,6 +233,37 @@ final class RuntimeBootstrapModelTests: XCTestCase {
         }
     }
 
+    /// Selecting a model while startup (or a previous switch) is still in flight must apply the
+    /// user's newest choice, not silently drop it. The old guard returned early whenever
+    /// `runtimeTask` was non-nil, which in production ate picker selections made during the
+    /// multi-second initial model load and left the UI stuck reporting the stale load.
+    @MainActor
+    func test_selectModel_duringInFlightStartup_appliesNewSelection() async throws {
+        let directory = try makeModelDirectory(filenames: ["alpha.gguf", "beta.gguf"])
+        let userDefaults = makeUserDefaults()
+        let model = makeModel(modelDirectory: directory, userDefaults: userDefaults)
+        let reloads = ReloadCounter()
+        model.onWillReloadModel = { reloads.increment() }
+
+        // Deleting the files after discovery keeps both the in-flight startup and the subsequent
+        // switch off the native llama.cpp path; each fails fast inside the locator's file checks.
+        try removeModelFile("alpha.gguf", in: directory)
+        try removeModelFile("beta.gguf", in: directory)
+
+        // `startIfNeeded` stores its task synchronously, and no suspension happens between these
+        // two calls, so `selectModel` deterministically observes the startup task as in flight.
+        model.startIfNeeded()
+        await model.selectModel("beta.gguf")
+
+        XCTAssertEqual(model.selectedModelFilename, "beta.gguf")
+        XCTAssertEqual(userDefaults.string(forKey: Self.selectionKey), "beta.gguf")
+        XCTAssertEqual(reloads.count, 1, "The applied switch must reset suggestion state")
+        XCTAssertNotNil(
+            model.state.failureDetail,
+            "The switch must run to a terminal state instead of leaving the stale load's state behind"
+        )
+    }
+
     // MARK: - Available-model reconciliation
 
     func test_refreshAvailableModels_discoversNewModelsAndKeepsValidSelection() throws {

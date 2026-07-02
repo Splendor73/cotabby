@@ -104,8 +104,16 @@ final class RuntimeBootstrapModel: ObservableObject {
             return
         }
 
-        guard runtimeTask == nil else {
-            return
+        // Startup or a previous switch may still be in flight — initial model loads take
+        // seconds, which is exactly when users change their pick. Returning early here
+        // silently dropped that pick: the picker snapped back and the status stayed on the
+        // stale load with nothing ever applying the new choice. Retire the in-flight work
+        // and let the newest selection win; the manager's prepare path already cancels and
+        // replaces native startup safely.
+        if let inFlightTask = runtimeTask {
+            inFlightTask.cancel()
+            await inFlightTask.value
+            runtimeTask = nil
         }
 
         selectedModelFilename = filename
