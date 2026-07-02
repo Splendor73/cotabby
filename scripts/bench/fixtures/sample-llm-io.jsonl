@@ -1,0 +1,5 @@
+{"request_id": "req_aaa00001", "engine": "llama", "latency_ms": 100, "timestamp": "2026-07-01T12:00:01Z"}
+{"request_id": "req_aaa00002", "engine": "llama", "latency_ms": 200, "timestamp": "2026-07-01T12:00:02Z"}
+{"request_id": "req_aaa00003", "engine": "llama", "latency_ms": 300, "timestamp": "2026-07-01T12:00:03Z"}
+{"request_id": "req_aaa00004", "engine": "llama", "latency_ms": 400, "timestamp": "2026-07-01T12:00:04Z"}
+{"request_id": "req_aaa00005", "engine": "llama", "latency_ms": 1000, "timestamp": "2026-07-01T12:00:05Z"}
