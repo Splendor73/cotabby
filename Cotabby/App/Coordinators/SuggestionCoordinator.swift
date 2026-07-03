@@ -138,6 +138,10 @@ final class SuggestionCoordinator: ObservableObject {
     /// the stale-frame kind, so older backward corrections stay re-anchorable.
     var lastAcceptanceAt: Date?
 
+    /// Arms after a dismissal so a regeneration for the same content runs with a varied sampler
+    /// seed instead of reproducing the rejected suggestion verbatim (see `RetrySeedTracker`).
+    var retrySeedTracker = RetrySeedTracker()
+
     /// Bounded string-only memory of recent suggestions for instant re-show on rollback and
     /// re-entry (see `SuggestionAnchorCache`). `cotabbyAnchorReuseDisabled` is the kill switch.
     var suggestionAnchorCache = SuggestionAnchorCache()

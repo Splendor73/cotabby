@@ -34,7 +34,8 @@ enum SuggestionRequestFactory {
         settings: SuggestionSettingsSnapshot,
         configuration: SuggestionConfiguration,
         clipboardContext: String? = nil,
-        visualContextSummary: String? = nil
+        visualContextSummary: String? = nil,
+        seedOverride: UInt32? = nil
     ) -> SuggestionRequestBuildResult {
         let prefixText = truncatedPromptPrefix(
             from: context.precedingText,
@@ -115,7 +116,10 @@ enum SuggestionRequestFactory {
             topP: configuration.topP,
             minP: configuration.minP,
             repetitionPenalty: configuration.repetitionPenalty,
-            randomSeed: configuration.randomSeed,
+            // A retry after a dismissal walks the seed (see RetrySeedTracker) so the regeneration
+            // does not reproduce the rejected suggestion; every other request keeps the stable
+            // configuration seed for reproducible ghost text.
+            randomSeed: seedOverride ?? configuration.randomSeed,
             maxSuffixCharacters: configuration.maxSuffixCharacters,
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,

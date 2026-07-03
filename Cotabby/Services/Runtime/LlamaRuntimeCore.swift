@@ -716,7 +716,10 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// treats seed 0 as "reseed randomly per sequence", which made identical contexts produce
     /// different ghost text run to run; a stable nonzero seed removes that variance. Requests can
     /// still override via `LlamaGenerationOptions.seed` (used by tests and microbenches).
-    private static let defaultSamplerSeed: UInt32 = 0x00C0_FFEE
+    /// Internal (not private) so `RetrySeedTrackerTests` can pin the tracker's duplicated base
+    /// constant to this value; the retry seed walk must extend the same stream the engine
+    /// defaults to.
+    static let defaultSamplerSeed: UInt32 = 0x00C0_FFEE
 
     private static func samplingConfig(from options: LlamaGenerationOptions) -> SamplingConfig {
         SamplingConfig(

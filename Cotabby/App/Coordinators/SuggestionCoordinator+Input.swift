@@ -390,7 +390,20 @@ extension SuggestionCoordinator {
             }
             return false
 
-        case .navigation, .dismissal:
+        case .dismissal:
+            // An explicit dismissal is a rejection of this exact suggestion: arm the retry seed
+            // walk so a later regeneration for the same content produces different ghost text
+            // instead of the suggestion the user just sent away. Navigation stays unarmed — a
+            // caret move is not a verdict on the text.
+            retrySeedTracker.noteDismissal(contentSignature: session.baseContext.contentSignature)
+            invalidateActiveSuggestion(
+                reason: SuggestionSessionReconciler.overlayHideReason(for: event),
+                clearDiagnostics: false
+            )
+            state = .idle
+            return false
+
+        case .navigation:
             invalidateActiveSuggestion(
                 reason: SuggestionSessionReconciler.overlayHideReason(for: event),
                 clearDiagnostics: false

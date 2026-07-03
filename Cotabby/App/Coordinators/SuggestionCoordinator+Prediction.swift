@@ -117,7 +117,10 @@ extension SuggestionCoordinator {
             settings: settingsSnapshot,
             configuration: configuration,
             clipboardContext: clipboardContext,
-            visualContextSummary: visualContextSummary
+            visualContextSummary: visualContextSummary,
+            // Non-nil only when this generation re-runs the exact content the user just
+            // dismissed; the walked seed keeps the retry from reproducing the rejected text.
+            seedOverride: retrySeedTracker.seedOverride(for: context.contentSignature)
         )
         latestGenerationNumber = context.generation
         latestPromptPreview = requestBuildResult.promptPreview
@@ -232,6 +235,9 @@ extension SuggestionCoordinator {
         // the prompt head mid-session, breaking prompt-byte continuity with the ordinary cycle
         // (and the llama KV prefix reuse that depends on it).
         let clipboardContext = pinnedClipboardContext(rawContext: optimistic)
+        // No seed override here: a speculative request runs against an optimistic post-acceptance
+        // signature the tracker was never armed for, and querying it would stand the tracker down
+        // before the real same-content regeneration got its varied seed.
         let requestBuildResult = SuggestionRequestFactory.buildRequest(
             context: context,
             settings: settingsSnapshot,
