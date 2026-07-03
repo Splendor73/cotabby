@@ -214,8 +214,10 @@
 		449218D0646AB3745B7E4F30 /* SuggestionEngineRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BDA36955CCCFA87C1F67268 /* SuggestionEngineRouterTests.swift */; };
 		4531645066A73971EB2A5FA1 /* EmojiCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AC3BF78835C8F2C315932F1 /* EmojiCatalog.swift */; };
 		45CE438CC67179356224AFD9 /* FocusTrackingModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6D42CD456B4B3C988B148A6 /* FocusTrackingModel.swift */; };
+		464B67603718893CC1A2713E /* KVReusePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8814DDFE96895A8264B4D544 /* KVReusePolicy.swift */; };
 		467E2EF8E7B1EC83F60F6A35 /* EmojiRecents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E72A3972E15749337539C2D /* EmojiRecents.swift */; };
 		469626C2EFEDFD6C188941F5 /* de.txt in Resources */ = {isa = PBXBuildFile; fileRef = C648EBB10D7F8E0B904DEC91 /* de.txt */; };
+		46D7055D8E53D6836975F4A9 /* KVReusePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B53075B34594C400A35A370 /* KVReusePolicyTests.swift */; };
 		46F341472191BC451B6BF6B5 /* SuggestionRequestFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDE858CB1E687E3CEB8FDD5B /* SuggestionRequestFactory.swift */; };
 		4701AB8E93FA78B808824AAD /* CotabbyBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9B27E3D3FD8008CE2C1B616 /* CotabbyBrand.swift */; };
 		47364583344BEA8FDC7178D8 /* DownloadFileRescuer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4B4A2E2DD6733658EC05BD8 /* DownloadFileRescuer.swift */; };
@@ -470,6 +472,7 @@
 		A36481222BB5B2A67349D389 /* ApplicationBundleMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A168A7B6A7AD11559B60C56B /* ApplicationBundleMetadataTests.swift */; };
 		A3913860E04446A86833D39B /* MirrorOverlayLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54150A507B03221F137D539B /* MirrorOverlayLayout.swift */; };
 		A3AFE27EDE956ADC04C91C94 /* SymSpellTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B32482EABE9EA979C40C8A8F /* SymSpellTests.swift */; };
+		A4E034CF48795C3B52290051 /* KVReusePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8814DDFE96895A8264B4D544 /* KVReusePolicy.swift */; };
 		A5A6CE0EF01CA6A9AFA7A400 /* RequestID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DC693E00430F46E41CB56E6 /* RequestID.swift */; };
 		A614AD79BE724ABA3721613B /* MacroModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B41F06FEF208B30ECCF23A6F /* MacroModels.swift */; };
 		A67B3F97DAEBEC7CA9B1215E /* PerDomainDisableSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25C3087D4A9F4DC52FD5A69 /* PerDomainDisableSettings.swift */; };
@@ -804,6 +807,7 @@
 		2A02336442BB735EE2E8D064 /* SettingsAttentionEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAttentionEvaluator.swift; sourceTree = "<group>"; };
 		2AF115FEF7FC96D46C815479 /* CalendarAccessibilityCapturePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarAccessibilityCapturePolicyTests.swift; sourceTree = "<group>"; };
 		2B3E5554AAC5D0007CCC61A7 /* LlamaDecodeGateDefaultsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaDecodeGateDefaultsTests.swift; sourceTree = "<group>"; };
+		2B53075B34594C400A35A370 /* KVReusePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KVReusePolicyTests.swift; sourceTree = "<group>"; };
 		2B7A28471B8526C2693FFF65 /* AcknowledgementsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcknowledgementsView.swift; sourceTree = "<group>"; };
 		2BC293F6125E2B14DCF05AD9 /* SettingsAttentionEvaluatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAttentionEvaluatorTests.swift; sourceTree = "<group>"; };
 		2D1F9CEBAB0F330F8E7B61D8 /* InputSuppressionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSuppressionController.swift; sourceTree = "<group>"; };
@@ -932,6 +936,7 @@
 		866D74711A35E0085D2A4BB3 /* SettingsSearchRanker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSearchRanker.swift; sourceTree = "<group>"; };
 		8724ECA8FABBC82B0A2B943B /* FoundationModelAvailabilityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelAvailabilityService.swift; sourceTree = "<group>"; };
 		87C309CD6A454C415D8BEEC7 /* SuggestionTextColorCodecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionTextColorCodecTests.swift; sourceTree = "<group>"; };
+		8814DDFE96895A8264B4D544 /* KVReusePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KVReusePolicy.swift; sourceTree = "<group>"; };
 		8896D976C7F116EBA0F3969F /* ChromiumAccessibilityEnabler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromiumAccessibilityEnabler.swift; sourceTree = "<group>"; };
 		89497C35D1825BAE9625EE06 /* ContextPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextPaneView.swift; sourceTree = "<group>"; };
 		8BF8DC1860CCF0DFA3A3DFD7 /* TextLayoutCaretEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextLayoutCaretEstimator.swift; sourceTree = "<group>"; };
@@ -1543,6 +1548,7 @@
 				2960080A726E51198225147A /* InsertionStrategySelectorTests.swift */,
 				683BA22ADD9D79AF9154ED1B /* InstructCompletionPromptRendererTests.swift */,
 				2930EC34057319130393696B /* KeyCodeLabelsTests.swift */,
+				2B53075B34594C400A35A370 /* KVReusePolicyTests.swift */,
 				4793D4EA5D36D7E5CC216C27 /* LanguageSupportTests.swift */,
 				2B3E5554AAC5D0007CCC61A7 /* LlamaDecodeGateDefaultsTests.swift */,
 				906011A6C9D66EEBAF3B5CC0 /* LlamaEvalScoring.swift */,
@@ -1797,6 +1803,7 @@
 				E0D2FEEA4304C86324BAADAB /* InsertionStrategySelector.swift */,
 				49FDEBB50A291943D42FE718 /* InstructCompletionPromptRenderer.swift */,
 				EAAE6B395FAB604DF059280A /* KeyCodeLabels.swift */,
+				8814DDFE96895A8264B4D544 /* KVReusePolicy.swift */,
 				8D610FCA3A97249DCCE7D0B8 /* LLMIOFileHandler.swift */,
 				1C201A65A6B040F90C528A3B /* MacroTriggerStateMachine.swift */,
 				A863F41C0C03D7B4AC5DC002 /* MarkerSelectionSynthesizer.swift */,
@@ -2159,6 +2166,7 @@
 				FC0C0C43EEC80325FE699B5A /* InsertionSafetyGate.swift in Sources */,
 				ADBCB725707ED11B19C7F08D /* InsertionStrategySelector.swift in Sources */,
 				F4EFEFDFD3241CE3E29E0573 /* InstructCompletionPromptRenderer.swift in Sources */,
+				A4E034CF48795C3B52290051 /* KVReusePolicy.swift in Sources */,
 				1C267B67EA61527B74C9D051 /* KeyCodeLabels.swift in Sources */,
 				BA74281E2DDE659C5CACBF24 /* KeyRecorderView.swift in Sources */,
 				4086A1B07488C4D3D43D86C9 /* KeyboardInputSourceMonitor.swift in Sources */,
@@ -2412,6 +2420,7 @@
 				DCABB8D2B391C7820D6CA5FF /* InsertionSafetyGate.swift in Sources */,
 				9D0F4829D11BCD4DB1290410 /* InsertionStrategySelector.swift in Sources */,
 				C729CDA87ECB78FEC0BD3DC4 /* InstructCompletionPromptRenderer.swift in Sources */,
+				464B67603718893CC1A2713E /* KVReusePolicy.swift in Sources */,
 				F78F594F77C26C233377E71F /* KeyCodeLabels.swift in Sources */,
 				F8E86FA4D6CEEBFA7FB55F8D /* KeyRecorderView.swift in Sources */,
 				3124AD2340D4B58AF48A22F3 /* KeyboardInputSourceMonitor.swift in Sources */,
@@ -2624,6 +2633,7 @@
 				83EC3543DC45B1601F119BF9 /* InsertionSafetyGateTests.swift in Sources */,
 				FC255241A3B34A5717F09B36 /* InsertionStrategySelectorTests.swift in Sources */,
 				1AA987E94902F9CCB394C190 /* InstructCompletionPromptRendererTests.swift in Sources */,
+				46D7055D8E53D6836975F4A9 /* KVReusePolicyTests.swift in Sources */,
 				F66F0D982EBAF5A3E99C5342 /* KeyCodeLabelsTests.swift in Sources */,
 				475FB7450EEC3C1B16E66CC4 /* LLMIOFileHandlerTests.swift in Sources */,
 				E912D4617AE1376061DF1F00 /* LanguageSupportTests.swift in Sources */,

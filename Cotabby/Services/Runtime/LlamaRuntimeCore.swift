@@ -46,11 +46,28 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     private var loggedTrimRejectionForCurrentModel = false
 
     /// True once the loaded model has rejected a partial KV trim (hybrid/recurrent and SWA caches
-    /// reject them unconditionally). On such models prefix reuse can never succeed, so prewarm
-    /// prefills are pure double work: the warmed sequence cannot be trimmed back to prompt-only
-    /// state, and the following generate's reuse trim is rejected too, forcing a second full
-    /// decode of the same prompt. Guarded by `autocompleteLock`; reset on model load.
+    /// reject them unconditionally). Trim-rejecting models switch to the snapshot-restore path
+    /// (see `KVReusePolicy`): prompt-only state is captured once and put back after each
+    /// generation instead of trimming, which revives prefix reuse and prewarm for these models.
+    /// Guarded by `autocompleteLock`; reset on model load.
     private var modelRejectsPartialTrims = false
+
+    /// Number of tokens currently decoded into the autocomplete sequence's cache. Drives the
+    /// skip-trim reuse branch: when an arriving prompt's reusable prefix equals this count, the
+    /// cache already sits exactly where the delta decode starts and no trim is issued at all —
+    /// hybrids reject even the empty-range removal. -1 means unknown/poisoned (a rejected trim
+    /// left sampled tokens behind), which forces a fresh build. Guarded by `autocompleteLock`.
+    private var autocompleteDecodedTokenCount = 0
+
+    /// Captured prompt-only sequence state for the snapshot-restore path, valid only for the
+    /// prompt of `promptTokenCount` tokens on the current sequence. Nil on dense models (they
+    /// trim for free), when the engine's reported size fails `KVReusePolicy.shouldCaptureSnapshot`,
+    /// or whenever the sequence is destroyed. Guarded by `autocompleteLock`.
+    private var autocompleteSnapshot: (data: [UInt8], promptTokenCount: Int)?
+
+    /// One informational line per model load when the snapshot path activates, mirroring the
+    /// trim-rejection log so dogfood logs show which reuse strategy a model runs under.
+    private var loggedSnapshotActivationForCurrentModel = false
 
     /// Coordinates model lifecycle with in-flight operations. `generate()` and `summarize()`
     /// increment the active count on entry and decrement on exit. `shutdown()` sets the
@@ -115,6 +132,10 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         self.preparedRuntime = result
         loggedTrimRejectionForCurrentModel = false
         modelRejectsPartialTrims = false
+        loggedSnapshotActivationForCurrentModel = false
+        // Snapshots are model- and context-specific (engine contract): never carry one across a load.
+        autocompleteSnapshot = nil
+        autocompleteDecodedTokenCount = 0
         CotabbyLogger.runtime.info(
             "Model loaded",
             metadata: [
@@ -173,13 +194,41 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             options: options
         )
 
+        // On trim-rejecting models, capture prompt-only state now (the cache holds exactly the
+        // prompt) so the defer below can restore it instead of trimming. Dense models skip this
+        // inside the policy — their trim is free.
+        captureAutocompleteSnapshotIfWorthwhile(promptTokenCount: preparation.promptTokens.count)
+
         defer {
-            // Trim sampled tokens so KV retains only the prompt for the next request. A rejected
-            // trim leaves the sampled tokens in KV while the tracker records prompt-only state;
-            // that mismatch self-heals (the next reuse trim is rejected too and rebuilds fresh),
-            // but it also proves this model can never reuse, so remember that for `prefill`.
-            if !engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
-                modelRejectsPartialTrims = true
+            // Return the cache to prompt-only state for the next request. Dense models trim the
+            // sampled tokens away; trim-rejecting models restore the snapshot captured above.
+            // The trim still runs as a probe while no snapshot exists — its rejection is what
+            // teaches us the model needs the snapshot path (and the poisoned cache self-heals:
+            // the decoded-count sentinel forces the next request to build fresh). Skipped when
+            // the sequence was already destroyed (cancellation): a trim on a dead sequence
+            // fails for lifecycle reasons and must not masquerade as a cache-family rejection.
+            if autocompleteSequenceID == sequenceID {
+                let action = KVReusePolicy.postGenerationAction(
+                    modelRejectsPartialTrims: modelRejectsPartialTrims,
+                    hasSnapshotForCurrentPrompt:
+                        autocompleteSnapshot?.promptTokenCount == preparation.promptTokens.count
+                )
+                switch action {
+                case .restoreSnapshot:
+                    if !restoreAutocompleteSnapshot() {
+                        engine.destroySequence(autocompleteSequenceID)
+                        autocompleteSequenceID = -1
+                        autocompleteSnapshot = nil
+                        autocompleteDecodedTokenCount = 0
+                    }
+                case .trim:
+                    if engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
+                        autocompleteDecodedTokenCount = preparation.promptTokens.count
+                    } else {
+                        modelRejectsPartialTrims = true
+                        autocompleteDecodedTokenCount = -1
+                    }
+                }
             }
             autocompletePromptBytes = preparation.promptBytes
             autocompletePromptTokens = preparation.promptTokens
@@ -198,6 +247,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             // every future decode, so drop it and let the next request build fresh.
             engine.destroySequence(sequenceID)
             autocompleteSequenceID = -1
+            autocompleteSnapshot = nil
+            autocompleteDecodedTokenCount = 0
         }
         return decode.output
     }
@@ -233,15 +284,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         // Same exit guarantee as `generate`: see the comment there.
         defer { clearAbortTarget() }
 
-        // On models that reject partial trims (the hybrid/SWA catalog families), a warmed
-        // sequence can never be reused, so prefilling would only double the cold decode the
-        // first real request pays anyway. The flag is learned from the first rejected trim
-        // after model load; until then one speculative prefill may still run and be discarded.
-        guard !modelRejectsPartialTrims else {
-            CotabbyLogger.runtime.debug("Prefill skipped: the loaded model rejects partial KV trims")
-            return
-        }
-
         // A superseding generation cancels the warmup task before contending on the lock above.
         // The engine-level abort only reaches a decode that already published its target, so close
         // the window where the cancel landed while this prefill was still tokenizing or queued.
@@ -258,10 +300,26 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         )
 
         // `decodePrompt` samples one seed token beyond the prompt, so the trim is what restores
-        // prompt-only KV. If it is rejected, the warmed sequence still carries the seed and can
-        // never be trimmed by the following generate either: drop it instead of recording tracker
-        // facts the KV does not match, and remember that warming this model is pointless.
-        if engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
+        // prompt-only KV on models that can trim. Trim-rejecting models take the snapshot path
+        // instead: capture prompt-only state now so the warmed sequence is reusable by the next
+        // generate — this is what makes prewarm work at all on the hybrid/SWA families.
+        if modelRejectsPartialTrims {
+            captureAutocompleteSnapshotIfWorthwhile(promptTokenCount: preparation.promptTokens.count)
+            if autocompleteSnapshot != nil {
+                autocompleteDecodedTokenCount = preparation.promptTokens.count
+                autocompletePromptBytes = preparation.promptBytes
+                autocompletePromptTokens = preparation.promptTokens
+                autocompleteSamplingFingerprint = preparation.fingerprint
+            } else {
+                // No snapshot means no way back to prompt-only state after the next generation;
+                // a warmed-but-unreusable sequence would just double the cold decode.
+                engine.destroySequence(sequenceID)
+                autocompleteSequenceID = -1
+                autocompleteDecodedTokenCount = 0
+                CotabbyLogger.runtime.debug("Prefill discarded: snapshot unavailable for a trim-rejecting model")
+            }
+        } else if engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
+            autocompleteDecodedTokenCount = preparation.promptTokens.count
             autocompletePromptBytes = preparation.promptBytes
             autocompletePromptTokens = preparation.promptTokens
             autocompleteSamplingFingerprint = preparation.fingerprint
@@ -269,6 +327,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             modelRejectsPartialTrims = true
             engine.destroySequence(sequenceID)
             autocompleteSequenceID = -1
+            autocompleteDecodedTokenCount = 0
             logTrimRejectionIfNeeded(reusableTokenCount: preparation.promptTokens.count)
         }
     }
@@ -501,6 +560,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         autocompletePromptBytes = []
         autocompletePromptTokens = []
         autocompleteSamplingFingerprint = nil
+        autocompleteSnapshot = nil
+        autocompleteDecodedTokenCount = 0
     }
 
     /// Waits for all in-flight `generate()` and `summarize()` calls to finish, then frees all
@@ -570,59 +631,79 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                     newPromptTokenCount: promptTokens.count
                 )
 
-                if reusableTokenCount > 0 {
-                    if engine.trimKV(autocompleteSequenceID, Int32(reusableTokenCount)) {
-                        let remaining = Array(promptTokens[reusableTokenCount...])
-                        if !remaining.isEmpty {
-                            // Seed for the reuse path is sampled at the end of this decodePrompt;
-                            // apply the word-continuation constraint to it like the fresh path does.
-                            engine.setForceWordContinuation(
-                                autocompleteSequenceID,
-                                options.forceWordContinuation
-                            )
-                            // Per-token log-probabilities cost two O(vocab) passes each in the
-                            // engine; only compute them when the confidence gate would actually
-                            // read them. Re-assert per request: the floor is not part of the
-                            // sampling fingerprint, so a reused sequence must not carry a stale flag.
-                            engine.setComputeLogprob(
-                                autocompleteSequenceID,
-                                options.confidenceFloor > -.infinity
-                            )
-                            setAbortTarget(autocompleteSequenceID)
-                            var mutableRemaining = remaining
-                            let status = engine.decodePrompt(
-                                autocompleteSequenceID,
-                                &mutableRemaining,
-                                Int32(mutableRemaining.count),
-                                Int32(reusableTokenCount)
-                            )
-                            if status == .cancelled {
-                                // The caller's request was superseded mid-prefill. Do NOT rebuild
-                                // fresh here: that would decode the full stale prompt right after
-                                // its cancellation. The aborted sequence is unusable (set-once
-                                // flag, partially decoded KV), so drop it and surface the cancel.
-                                engine.destroySequence(autocompleteSequenceID)
-                                autocompleteSequenceID = -1
-                                throw CancellationError()
-                            }
-                            if status != .ok {
-                                // Reuse failed mid-decode; fall through to fresh build.
-                                engine.destroySequence(autocompleteSequenceID)
-                                autocompleteSequenceID = -1
-                                return try buildFreshSequence(promptTokens: promptTokens, options: options)
-                            }
-                        }
-                        CotabbyLogger.runtime.debug(
-                            "KV prefix reused",
-                            metadata: [
-                                "reused_tokens": .stringConvertible(reusableTokenCount),
-                                "decoded_delta_tokens": .stringConvertible(promptTokens.count - reusableTokenCount)
-                            ]
-                        )
-                        return autocompleteSequenceID
+                let reuseDecision = KVReusePolicy.reuseDecision(
+                    modelRejectsPartialTrims: modelRejectsPartialTrims,
+                    reusableTokenCount: reusableTokenCount,
+                    decodedTokenCount: autocompleteDecodedTokenCount
+                )
+                reuse: switch reuseDecision {
+                case .rebuildFresh:
+                    break reuse
+
+                case .decodeDeltaWithoutTrim, .trimThenDecode:
+                    // A pure extension needs no trim: the cache already sits exactly at the
+                    // reusable prefix (guaranteed by the decoded-token bookkeeping), and issuing
+                    // the empty-range trim anyway is exactly what hybrid caches reject.
+                    if reuseDecision == .trimThenDecode,
+                       !engine.trimKV(autocompleteSequenceID, Int32(reusableTokenCount)) {
+                        logTrimRejectionIfNeeded(reusableTokenCount: reusableTokenCount)
+                        autocompleteDecodedTokenCount = -1
+                        break reuse
                     }
 
-                    logTrimRejectionIfNeeded(reusableTokenCount: reusableTokenCount)
+                    let remaining = Array(promptTokens[reusableTokenCount...])
+                    if !remaining.isEmpty {
+                        // Seed for the reuse path is sampled at the end of this decodePrompt;
+                        // apply the word-continuation constraint to it like the fresh path does.
+                        engine.setForceWordContinuation(
+                            autocompleteSequenceID,
+                            options.forceWordContinuation
+                        )
+                        // Per-token log-probabilities cost two O(vocab) passes each in the
+                        // engine; only compute them when the confidence gate would actually
+                        // read them. Re-assert per request: the floor is not part of the
+                        // sampling fingerprint, so a reused sequence must not carry a stale flag.
+                        engine.setComputeLogprob(
+                            autocompleteSequenceID,
+                            options.confidenceFloor > -.infinity
+                        )
+                        setAbortTarget(autocompleteSequenceID)
+                        var mutableRemaining = remaining
+                        let status = engine.decodePrompt(
+                            autocompleteSequenceID,
+                            &mutableRemaining,
+                            Int32(mutableRemaining.count),
+                            Int32(reusableTokenCount)
+                        )
+                        if status == .cancelled {
+                            // The caller's request was superseded mid-prefill. Do NOT rebuild
+                            // fresh here: that would decode the full stale prompt right after
+                            // its cancellation. The aborted sequence is unusable (set-once
+                            // flag, partially decoded KV), so drop it and surface the cancel.
+                            engine.destroySequence(autocompleteSequenceID)
+                            autocompleteSequenceID = -1
+                            autocompleteSnapshot = nil
+                            autocompleteDecodedTokenCount = 0
+                            throw CancellationError()
+                        }
+                        if status != .ok {
+                            // Reuse failed mid-decode; fall through to fresh build.
+                            engine.destroySequence(autocompleteSequenceID)
+                            autocompleteSequenceID = -1
+                            autocompleteSnapshot = nil
+                            autocompleteDecodedTokenCount = 0
+                            return try buildFreshSequence(promptTokens: promptTokens, options: options)
+                        }
+                    }
+                    autocompleteDecodedTokenCount = promptTokens.count
+                    CotabbyLogger.runtime.debug(
+                        "KV prefix reused",
+                        metadata: [
+                            "reused_tokens": .stringConvertible(reusableTokenCount),
+                            "decoded_delta_tokens": .stringConvertible(promptTokens.count - reusableTokenCount)
+                        ]
+                    )
+                    return autocompleteSequenceID
                 }
             }
         }
@@ -630,6 +711,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         if autocompleteSequenceID >= 0 {
             engine.destroySequence(autocompleteSequenceID)
             autocompleteSequenceID = -1
+            autocompleteSnapshot = nil
+            autocompleteDecodedTokenCount = 0
         }
         return try buildFreshSequence(promptTokens: promptTokens, options: options)
     }
@@ -666,6 +749,9 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         }
 
         autocompleteSequenceID = seqID
+        autocompleteDecodedTokenCount = promptTokens.count
+        // A fresh sequence invalidates any state captured from the previous one.
+        autocompleteSnapshot = nil
         return seqID
     }
 
@@ -692,6 +778,78 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             "KV prefix trim rejected; rebuilding sequence",
             metadata: ["rejected_reusable_tokens": .stringConvertible(reusableTokenCount)]
         )
+    }
+
+    // MARK: - Private: snapshot-restore (trim-rejecting models)
+
+    /// Captures the current prompt-only sequence state when the policy says it pays off.
+    /// Called with the cache holding exactly `promptTokenCount` decoded tokens; a later
+    /// `restoreAutocompleteSnapshot` puts the sequence back to this state without any trim.
+    /// Caller holds `autocompleteLock`.
+    private func captureAutocompleteSnapshotIfWorthwhile(promptTokenCount: Int) {
+        autocompleteSnapshot = nil
+        guard autocompleteSequenceID >= 0 else { return }
+
+        let snapshotSize = Int(engine.snapshotSize(autocompleteSequenceID))
+        guard KVReusePolicy.shouldCaptureSnapshot(
+            modelRejectsPartialTrims: modelRejectsPartialTrims,
+            snapshotSizeBytes: snapshotSize
+        ) else { return }
+
+        var buffer = [UInt8](repeating: 0, count: snapshotSize)
+        let written = buffer.withUnsafeMutableBufferPointer { pointer in
+            Int(engine.snapshotSequence(autocompleteSequenceID, pointer.baseAddress, snapshotSize))
+        }
+        guard written > 0 else {
+            CotabbyLogger.runtime.debug(
+                "Sequence snapshot capture failed; keeping rebuild behavior",
+                metadata: ["requested_bytes": .stringConvertible(snapshotSize)]
+            )
+            return
+        }
+        if written < buffer.count {
+            buffer.removeLast(buffer.count - written)
+        }
+        autocompleteSnapshot = (data: buffer, promptTokenCount: promptTokenCount)
+
+        if !loggedSnapshotActivationForCurrentModel {
+            loggedSnapshotActivationForCurrentModel = true
+            CotabbyLogger.runtime.info(
+                "KV snapshot-restore active: this model cannot trim, so prompt state is captured and restored instead",
+                metadata: [
+                    "model": .string(preparedRuntime?.resolvedRuntime.modelDisplayName ?? "unknown"),
+                    "snapshot_bytes": .stringConvertible(written)
+                ]
+            )
+        }
+    }
+
+    /// Puts the captured prompt-only state back after a generation, replacing the trim these
+    /// models reject. Returns false when no valid snapshot exists or the engine refuses the
+    /// restore — callers must then drop the sequence so the next request builds fresh.
+    /// Caller holds `autocompleteLock`.
+    private func restoreAutocompleteSnapshot() -> Bool {
+        guard let snapshot = autocompleteSnapshot, autocompleteSequenceID >= 0 else {
+            return false
+        }
+
+        let restored = snapshot.data.withUnsafeBufferPointer { pointer in
+            engine.restoreSequence(
+                autocompleteSequenceID,
+                pointer.baseAddress,
+                snapshot.data.count,
+                Int32(snapshot.promptTokenCount)
+            )
+        }
+        if restored {
+            autocompleteDecodedTokenCount = snapshot.promptTokenCount
+        } else {
+            CotabbyLogger.runtime.debug(
+                "Sequence snapshot restore failed; dropping sequence",
+                metadata: ["snapshot_bytes": .stringConvertible(snapshot.data.count)]
+            )
+        }
+        return restored
     }
 
     // MARK: - Private: helpers
