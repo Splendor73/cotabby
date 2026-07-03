@@ -14,7 +14,7 @@ final class FocusDebugOverlayController {
     static let launchArgument = CotabbyDebugOptions.launchArgument
 
     static var isEnabled: Bool {
-        CotabbyDebugOptions.isEnabled
+        CotabbyDebugOptions.isHUDEnabled()
     }
 
     private lazy var caretPanel: NSPanel = makePanel()

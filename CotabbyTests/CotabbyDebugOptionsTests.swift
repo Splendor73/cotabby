@@ -48,6 +48,23 @@ final class CotabbyDebugOptionsTests: XCTestCase {
         )
     }
 
+    func test_hudDisabledDefaultsKey_suppressesTheOverlayButNotDebugMode() {
+        let suiteName = "io.cotabby.tests.CotabbyDebugOptionsTests-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            return XCTFail("Expected an isolated UserDefaults suite")
+        }
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // The HUD follows debug mode by default, so `-cotabby-debug` alone keeps today's behavior.
+        XCTAssertEqual(CotabbyDebugOptions.isHUDEnabled(defaults), CotabbyDebugOptions.isEnabled)
+
+        // Opting out hides the on-screen chrome without touching the JSONL sinks: benchmarking
+        // needs the file logs while the user types, and a panel floating over their work is not
+        // part of that.
+        defaults.set(true, forKey: CotabbyDebugOptions.hudDisabledDefaultsKey)
+        XCTAssertFalse(CotabbyDebugOptions.isHUDEnabled(defaults))
+    }
+
     func test_log_staysQuietWhenDebugModeIsOff() throws {
         try XCTSkipIf(CotabbyDebugOptions.isEnabled, "Runner was launched with -cotabby-debug")
 

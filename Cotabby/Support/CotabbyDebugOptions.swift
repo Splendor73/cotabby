@@ -16,6 +16,17 @@ nonisolated enum CotabbyDebugOptions {
         ProcessInfo.processInfo.arguments.contains(launchArgument)
     }
 
+    /// Opt-out for the on-screen debug chrome (focus badge + visual-context panel) while keeping
+    /// `-cotabby-debug`'s JSONL sinks. Benchmarking needs the file logs recording while the user
+    /// types normally; a HUD floating over their work is not part of that bargain.
+    /// `defaults write <bundle-id> cotabbyDebugHUDDisabled -bool true`
+    static let hudDisabledDefaultsKey = "cotabbyDebugHUDDisabled"
+
+    /// Whether the debug overlays may render: debug mode on AND the HUD not explicitly opted out.
+    static func isHUDEnabled(_ defaults: UserDefaults = .standard) -> Bool {
+        isEnabled && !defaults.bool(forKey: hudDisabledDefaultsKey)
+    }
+
     /// The swift-log floor applied to the always-on `OSLogHandler` and the debug-only file sinks.
     ///
     /// swift-log only skips evaluating a log call's `@autoclosure` message (and building its
