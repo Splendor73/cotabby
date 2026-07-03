@@ -36,7 +36,8 @@ enum SuggestionRequestFactory {
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
         seedOverride: UInt32? = nil,
-        runtimeContextWindowTokens: Int32? = nil
+        runtimeContextWindowTokens: Int32? = nil,
+        promptStyle: PromptStyle = .baseContinuation
     ) -> SuggestionRequestBuildResult {
         let prefixText = truncatedPromptPrefix(
             from: context.precedingText,
@@ -86,26 +87,51 @@ enum SuggestionRequestFactory {
         // Cotabby 2 is a base-model continuation product on the Open Source path, so the local
         // prompt is always the base render: no instruction blob, prefix last, trailing-trimmed.
         // Custom instructions and persona condition the output rather than being obeyed. The
+        // The loaded runtime's real window wins over the compile-time default so profiled
+        // models (RuntimeModelProfile) fill their larger KV capacity instead of truncating
+        // against 2048. Every caller in one suggestion session must pass the same value or
+        // prompt bytes diverge between prewarm and generation, breaking KV prefix reuse.
+        let promptTokenBudget = runtimeContextWindowTokens.map {
+            SuggestionConfiguration.llamaPromptTokenBudget(forContextWindowTokens: $0)
+        } ?? configuration.llamaPromptTokenBudget
+
         // Foundation Models path builds its own messages from these same request fields, so this
-        // prompt string is only consumed by the llama engine.
-        let prompt = BaseCompletionPromptRenderer.prompt(
-            prefixText: prefixText,
-            applicationName: context.applicationName,
-            userName: userName,
-            customRules: customRules,
-            extendedContext: activeExtendedContext,
-            languageInstruction: languageInstruction,
-            clipboardContext: boundedClipboardContext,
-            visualContextSummary: boundedVisualContextSummary,
-            surfaceContext: surfaceContext,
-            // The loaded runtime's real window wins over the compile-time default so profiled
-            // models (RuntimeModelProfile) fill their larger KV capacity instead of truncating
-            // against 2048. Every caller in one suggestion session must pass the same value or
-            // prompt bytes diverge between prewarm and generation, breaking KV prefix reuse.
-            tokenBudget: runtimeContextWindowTokens.map {
-                SuggestionConfiguration.llamaPromptTokenBudget(forContextWindowTokens: $0)
-            } ?? configuration.llamaPromptTokenBudget
-        )
+        // prompt string is only consumed by the llama engine. Instruct catalog models get the
+        // chat-template render with right-context; base and unknown models keep the conservative
+        // continuation prompt. A2's reliability tri-state gates the suffix: an unreadable
+        // trailing range must not be injected as if it were real text.
+        let prompt: String
+        switch promptStyle {
+        case .instruct:
+            let reliableTrailingText = context.isTrailingTextReliable ? context.trailingText : ""
+            prompt = InstructCompletionPromptRenderer.prompt(
+                prefixText: prefixText,
+                suffixText: String(reliableTrailingText.prefix(configuration.maxSuffixCharacters)),
+                applicationName: context.applicationName,
+                userName: userName,
+                customRules: customRules,
+                extendedContext: activeExtendedContext,
+                languageInstruction: languageInstruction,
+                clipboardContext: boundedClipboardContext,
+                visualContextSummary: boundedVisualContextSummary,
+                surfaceContext: surfaceContext,
+                completionLengthInstruction: completionLengthInstruction,
+                tokenBudget: promptTokenBudget
+            )
+        case .baseContinuation:
+            prompt = BaseCompletionPromptRenderer.prompt(
+                prefixText: prefixText,
+                applicationName: context.applicationName,
+                userName: userName,
+                customRules: customRules,
+                extendedContext: activeExtendedContext,
+                languageInstruction: languageInstruction,
+                clipboardContext: boundedClipboardContext,
+                visualContextSummary: boundedVisualContextSummary,
+                surfaceContext: surfaceContext,
+                tokenBudget: promptTokenBudget
+            )
+        }
 
         let request = SuggestionRequest(
             context: context,

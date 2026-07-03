@@ -237,6 +237,9 @@ final class CotabbyAppEnvironment {
             // window, everything else keeps the compile-time default (provider returns nil).
             runtimeContextWindowTokensProvider: { [weak runtimeManager] in
                 runtimeManager?.diagnostics.contextWindowTokens.map(Int32.init)
+            },
+            activeLlamaModelFilenameProvider: { [weak runtimeManager] in
+                runtimeManager?.currentModelFilename
             }
         )
 

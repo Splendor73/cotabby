@@ -146,6 +146,17 @@ final class SuggestionCoordinator: ObservableObject {
     /// model has loaded. Consumed by every request build so the prompt budget follows the model.
     let runtimeContextWindowTokensProvider: () -> Int32?
 
+    /// See the initializer parameter: the active llama model, resolved to a `PromptStyle` at
+    /// request-build time so every build site in one session renders with the same template.
+    let activeLlamaModelFilenameProvider: () -> String?
+
+    /// The prompt style of the active llama model (conservative base render when none is loaded
+    /// or the model has no profile).
+    var activeLlamaPromptStyle: PromptStyle {
+        RuntimeModelCatalog.profile(for: activeLlamaModelFilenameProvider())?.promptStyle
+            ?? .baseContinuation
+    }
+
     /// Bounded string-only memory of recent suggestions for instant re-show on rollback and
     /// re-entry (see `SuggestionAnchorCache`). `cotabbyAnchorReuseDisabled` is the kill switch.
     var suggestionAnchorCache = SuggestionAnchorCache()
@@ -197,7 +208,11 @@ final class SuggestionCoordinator: ObservableObject {
         // build in one session must see the same value so prewarm and generation produce
         // byte-identical prompt heads for KV prefix reuse; defaulted so tests that never touch
         // the runtime keep the compile-time budget.
-        runtimeContextWindowTokensProvider: @escaping () -> Int32? = { nil }
+        runtimeContextWindowTokensProvider: @escaping () -> Int32? = { nil },
+        // The active llama model's filename (nil before any load); resolves the per-model
+        // prompt style so instruct catalog models get the chat-template render. Defaulted so
+        // tests keep the conservative base renderer.
+        activeLlamaModelFilenameProvider: @escaping () -> String? = { nil }
     ) {
         let storedTotalTabAcceptedWordCount = userDefaults.integer(
             forKey: Self.totalTabAcceptedWordCountDefaultsKey)
@@ -221,6 +236,7 @@ final class SuggestionCoordinator: ObservableObject {
         self.qualityMetricsStore = qualityMetricsStore
         self.userDefaults = userDefaults
         self.runtimeContextWindowTokensProvider = runtimeContextWindowTokensProvider
+        self.activeLlamaModelFilenameProvider = activeLlamaModelFilenameProvider
         settingsSnapshot = suggestionSettings.snapshot
         // These collaborators isolate "how overlay/logging works" from "when the coordinator
         // wants to show state," which keeps the coordinator closer to orchestration code.

@@ -92,15 +92,26 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
     }
 }
 
+/// How the llama prompt is rendered for a model: bare continuation for base checkpoints, a chat
+/// template for instruct checkpoints. Unknown user-supplied GGUFs default to `.baseContinuation`
+/// — the conservative renderer that cannot leak template scaffolding a model was never trained on.
+enum PromptStyle: Equatable, Sendable {
+    case baseContinuation
+    case instruct
+}
+
 /// Per-model overrides of the global runtime configuration. Keyed by GGUF filename in
 /// `RuntimeModelCatalog.profiles`; absent fields (and absent profiles) fall through to
 /// `LlamaRuntimeConfiguration`'s values, so unknown user-supplied models keep today's behavior.
-/// Grows with later stages (prompt style, sampling); kept minimal until each field has an
-/// evaluated reason to exist.
+/// Grows with later stages (sampling); kept minimal until each field has an evaluated reason to
+/// exist.
 struct RuntimeModelProfile: Equatable, Sendable {
     /// Per-sequence KV capacity to load this model with. Only profiled models pay the larger
     /// cache; the hybrid/SWA catalog models keep the global default.
     var contextWindowTokens: Int32?
+    /// Prompt render for this model. Templates are scoped to catalog-listed filenames only —
+    /// never guessed for unknown models, where a wrong template reads as scaffolding leakage.
+    var promptStyle: PromptStyle = .baseContinuation
 }
 
 enum RuntimeModelCatalog {
@@ -108,7 +119,10 @@ enum RuntimeModelCatalog {
     /// by existing: the instruct model's 4096 window is affordable because its dense KV cache
     /// supports prefix reuse (the window prefills once per field, not once per keystroke).
     private static let profiles: [String: RuntimeModelProfile] = [
-        "Qwen3-4B-Instruct-2507-Q4_K_M.gguf": RuntimeModelProfile(contextWindowTokens: 4096)
+        "Qwen3-4B-Instruct-2507-Q4_K_M.gguf": RuntimeModelProfile(
+            contextWindowTokens: 4096,
+            promptStyle: .instruct
+        )
     ]
 
     static func profile(for filename: String?) -> RuntimeModelProfile? {
