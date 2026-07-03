@@ -35,7 +35,8 @@ enum SuggestionRequestFactory {
         configuration: SuggestionConfiguration,
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
-        seedOverride: UInt32? = nil
+        seedOverride: UInt32? = nil,
+        runtimeContextWindowTokens: Int32? = nil
     ) -> SuggestionRequestBuildResult {
         let prefixText = truncatedPromptPrefix(
             from: context.precedingText,
@@ -97,7 +98,13 @@ enum SuggestionRequestFactory {
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
-            tokenBudget: configuration.llamaPromptTokenBudget
+            // The loaded runtime's real window wins over the compile-time default so profiled
+            // models (RuntimeModelProfile) fill their larger KV capacity instead of truncating
+            // against 2048. Every caller in one suggestion session must pass the same value or
+            // prompt bytes diverge between prewarm and generation, breaking KV prefix reuse.
+            tokenBudget: runtimeContextWindowTokens.map {
+                SuggestionConfiguration.llamaPromptTokenBudget(forContextWindowTokens: $0)
+            } ?? configuration.llamaPromptTokenBudget
         )
 
         let request = SuggestionRequest(

@@ -120,7 +120,8 @@ extension SuggestionCoordinator {
             visualContextSummary: visualContextSummary,
             // Non-nil only when this generation re-runs the exact content the user just
             // dismissed; the walked seed keeps the retry from reproducing the rejected text.
-            seedOverride: retrySeedTracker.seedOverride(for: context.contentSignature)
+            seedOverride: retrySeedTracker.seedOverride(for: context.contentSignature),
+            runtimeContextWindowTokens: runtimeContextWindowTokensProvider()
         )
         latestGenerationNumber = context.generation
         latestPromptPreview = requestBuildResult.promptPreview
@@ -243,7 +244,8 @@ extension SuggestionCoordinator {
             settings: settingsSnapshot,
             configuration: configuration,
             clipboardContext: clipboardContext,
-            visualContextSummary: visualContextSummary
+            visualContextSummary: visualContextSummary,
+            runtimeContextWindowTokens: runtimeContextWindowTokensProvider()
         )
         latestGenerationNumber = context.generation
         latestPromptPreview = requestBuildResult.promptPreview

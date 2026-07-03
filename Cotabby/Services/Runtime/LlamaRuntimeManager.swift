@@ -274,10 +274,15 @@ final class LlamaRuntimeManager: ObservableObject {
         diagnostics.lastError = nil
         diagnostics.lastLoadStatus = "Starting"
         diagnostics.modelFilePath = resolvedRuntime.modelFileURL.path
-        let startupTask = Task.detached { [core, configuration] in
+        // Per-model overrides (context window, later sampling) apply at load time so a profiled
+        // model gets its own KV capacity while every other model keeps the global configuration.
+        let effectiveConfiguration = RuntimeModelCatalog.effectiveConfiguration(
+            configuration, forModelFilename: requestedModelFilename
+        )
+        let startupTask = Task.detached { [core] in
             try core.prepare(
                 resolvedRuntime: resolvedRuntime,
-                configuration: configuration
+                configuration: effectiveConfiguration
             )
         }
         self.startupTask = startupTask

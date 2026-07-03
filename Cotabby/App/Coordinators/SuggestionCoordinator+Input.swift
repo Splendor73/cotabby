@@ -142,10 +142,14 @@ extension SuggestionCoordinator {
             // null the freshly primed session out from under us.
             await self.awaitCachedGenerationContextResetIfNeeded()
             let prewarmContext = FocusedInputContext(snapshot: rawContext, generation: 0)
+            // Same window value as the generation path: a prewarm built against a different
+            // token budget renders different prompt bytes, and the prefilled prefix would never
+            // match the real request.
             let request = SuggestionRequestFactory.buildRequest(
                 context: prewarmContext,
                 settings: settings,
-                configuration: configuration
+                configuration: configuration,
+                runtimeContextWindowTokens: self.runtimeContextWindowTokensProvider()
             ).request
             await suggestionEngine.prewarm(for: request)
         }

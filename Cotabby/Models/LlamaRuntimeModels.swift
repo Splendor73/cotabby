@@ -92,7 +92,48 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
     }
 }
 
+/// Per-model overrides of the global runtime configuration. Keyed by GGUF filename in
+/// `RuntimeModelCatalog.profiles`; absent fields (and absent profiles) fall through to
+/// `LlamaRuntimeConfiguration`'s values, so unknown user-supplied models keep today's behavior.
+/// Grows with later stages (prompt style, sampling); kept minimal until each field has an
+/// evaluated reason to exist.
+struct RuntimeModelProfile: Equatable, Sendable {
+    /// Per-sequence KV capacity to load this model with. Only profiled models pay the larger
+    /// cache; the hybrid/SWA catalog models keep the global default.
+    var contextWindowTokens: Int32?
+}
+
 enum RuntimeModelCatalog {
+    /// The deliberate per-model overrides. A model earns an entry here through measurement, not
+    /// by existing: the instruct model's 4096 window is affordable because its dense KV cache
+    /// supports prefix reuse (the window prefills once per field, not once per keystroke).
+    private static let profiles: [String: RuntimeModelProfile] = [
+        "Qwen3-4B-Instruct-2507-Q4_K_M.gguf": RuntimeModelProfile(contextWindowTokens: 4096)
+    ]
+
+    static func profile(for filename: String?) -> RuntimeModelProfile? {
+        filename.flatMap { profiles[$0] }
+    }
+
+    /// The configuration a specific model should actually load with: the global configuration
+    /// with any profiled fields overridden. Identity for unprofiled models.
+    static func effectiveConfiguration(
+        _ configuration: LlamaRuntimeConfiguration,
+        forModelFilename filename: String?
+    ) -> LlamaRuntimeConfiguration {
+        guard let profile = profile(for: filename) else {
+            return configuration
+        }
+
+        return LlamaRuntimeConfiguration(
+            runtimeDirectoryPath: configuration.runtimeDirectoryPath,
+            preferredModelNames: configuration.preferredModelNames,
+            contextWindowTokens: profile.contextWindowTokens ?? configuration.contextWindowTokens,
+            batchSize: configuration.batchSize,
+            gpuLayerCount: configuration.gpuLayerCount
+        )
+    }
+
     static func displayName(for filename: String) -> String {
         switch filename {
         case "Qwen3.5-0.8B-Base.i1-Q6_K.gguf":

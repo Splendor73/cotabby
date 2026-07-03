@@ -157,7 +157,16 @@ struct SuggestionConfiguration: Equatable, Sendable {
     /// The per-sequence KV capacity minus the output ceiling and safety margin. Computed from
     /// `LlamaRuntimeConfiguration.default` so the two constants cannot drift apart silently.
     static var derivedLlamaPromptTokenBudget: Int {
-        Int(LlamaRuntimeConfiguration.default.contextWindowTokens)
+        llamaPromptTokenBudget(
+            forContextWindowTokens: LlamaRuntimeConfiguration.default.contextWindowTokens
+        )
+    }
+
+    /// The same budget formula parameterized by the *loaded* runtime's context window, so a
+    /// per-model window override (see `RuntimeModelProfile`) widens the prompt budget with it
+    /// instead of silently under-filling against the compile-time default.
+    static func llamaPromptTokenBudget(forContextWindowTokens contextWindowTokens: Int32) -> Int {
+        Int(contextWindowTokens)
             - llamaPromptOutputCeilingTokens
             - llamaPromptSafetyMarginTokens
     }

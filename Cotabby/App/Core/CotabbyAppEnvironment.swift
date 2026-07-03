@@ -231,7 +231,13 @@ final class CotabbyAppEnvironment {
             spellChecker: spellChecker,
             symSpellCorrector: symSpellCorrector,
             spellingLanguageResolver: SpellingLanguageResolver(),
-            qualityMetricsStore: qualityMetricsStore
+            qualityMetricsStore: qualityMetricsStore,
+            // The engine reports the real per-sequence window after load (diagnostics), so the
+            // prompt budget follows whichever model is active — profiled models fill their larger
+            // window, everything else keeps the compile-time default (provider returns nil).
+            runtimeContextWindowTokensProvider: { [weak runtimeManager] in
+                runtimeManager?.diagnostics.contextWindowTokens.map(Int32.init)
+            }
         )
 
         // The emoji picker is a sibling to the suggestion coordinator. It reuses the input monitor,
