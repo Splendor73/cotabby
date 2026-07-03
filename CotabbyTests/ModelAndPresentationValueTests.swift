@@ -387,7 +387,7 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
     func test_downloadableModelCatalog_entriesAreUniqueHuggingFaceGGUFDownloads() {
         let models = RuntimeModelCatalog.downloadableModels
 
-        XCTAssertEqual(models.count, 4)
+        XCTAssertEqual(models.count, 5)
         XCTAssertEqual(Set(models.map(\.id)).count, models.count)
         for model in models {
             XCTAssertTrue(model.filename.hasSuffix(".gguf"), "\(model.filename) should be a GGUF")
@@ -395,6 +395,31 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
             XCTAssertTrue(model.downloadURL.absoluteString.hasSuffix("?download=true"))
             XCTAssertEqual(model.displayName, RuntimeModelCatalog.displayName(for: model.filename))
         }
+    }
+
+    func test_downloadableModelCatalog_instructEntryShipsWithFullValidationMetadata() throws {
+        // The dense-attention instruct model exists to restore KV prefix reuse (the hybrid/SWA
+        // base catalog rejects partial trims, forcing a full re-prefill per request). Its entry is
+        // the first to carry size+hash so the download manager's validation actually runs.
+        let instruct = try XCTUnwrap(
+            RuntimeModelCatalog.downloadableModels.first {
+                $0.filename == "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+            },
+            "the dense instruct model must be downloadable"
+        )
+        XCTAssertEqual(instruct.displayName, "tabby-2-swift")
+        XCTAssertEqual(instruct.expectedSizeBytes, 2_497_281_120)
+        XCTAssertEqual(
+            instruct.sha256,
+            "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597"
+        )
+
+        // Selectable, not default: the preferred order decides what a fresh install auto-loads,
+        // and the instruct model must not take that slot until the eval numbers justify it.
+        XCTAssertFalse(
+            LlamaRuntimeConfiguration.default.preferredModelNames.contains(instruct.filename),
+            "default flip is gated on the baseline eval comparison"
+        )
     }
 
     func test_llamaGenerationOptions_defaultsKeepMaskingAndSuppressionOff() {

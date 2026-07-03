@@ -103,6 +103,8 @@ enum RuntimeModelCatalog {
             return "tabby-2-base"
         case "gemma-4-E4B.i1-Q4_K_M.gguf":
             return "tabby-2-pro"
+        case "Qwen3-4B-Instruct-2507-Q4_K_M.gguf":
+            return "tabby-2-swift"
         default:
             return filename
         }
@@ -142,6 +144,20 @@ enum RuntimeModelCatalog {
             displayName: displayName(for: "gemma-4-E4B.i1-Q4_K_M.gguf"),
             downloadURL: hfURL("mradermacher/gemma-4-E4B-i1-GGUF", "gemma-4-E4B.i1-Q4_K_M.gguf"),
             approximateSizeInGigabytes: 5.0
+        ),
+        // Dense-attention instruct model (Apache-2.0). Unlike the hybrid/SWA base catalog above,
+        // its KV cache accepts partial trims, which revives prefix reuse and prewarm: requests
+        // decode only the typed delta instead of re-prefilling the whole prompt (see
+        // `LlamaRuntimeCore.trimKV`). Deliberately absent from the default preferred order until
+        // eval numbers justify the flip; size+hash captured from the CDN headers (x-linked-size /
+        // x-linked-etag, 2026-07-03) so download validation runs for the first time.
+        DownloadableRuntimeModel(
+            filename: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+            displayName: displayName(for: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"),
+            downloadURL: hfURL("unsloth/Qwen3-4B-Instruct-2507-GGUF", "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"),
+            approximateSizeInGigabytes: 2.5,
+            expectedSizeBytes: 2_497_281_120,
+            sha256: "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597"
         )
     ]
 }
