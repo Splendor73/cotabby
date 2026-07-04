@@ -160,6 +160,17 @@ extension SuggestionCoordinator {
         if TrailingDuplicationFilter.duplicatesTrailingText(remainder, trailingText: context.trailingText) {
             return false
         }
+        // The remainder passed the seam guard as part of a LONGER completion against the text at
+        // generation time; the surviving suffix at the CURRENT caret can still collide with what
+        // follows it (e.g. cached "so great" typed through to "great" in front of trailing
+        // "great"). Same reliability gate as the normalizer's pass.
+        if context.isTrailingTextReliable,
+           TightSeamConflictGuard.conflictsWithTrailingText(
+               completion: remainder,
+               trailingText: context.trailingText
+           ) {
+            return false
+        }
         if let pendingAcceptedTail = lastAcceptedTail,
            SuggestionSessionReconciler.isStaleAcceptanceEcho(
                resultText: remainder,
@@ -257,7 +268,7 @@ extension SuggestionCoordinator {
 
         let workID = workController.replaceDebouncedWork(delayMilliseconds: 0) { [weak self] workID in
             guard let self else { return }
-            self.dispatchGeneration(request: request, workID: workID)
+            self.dispatchGeneration(request: request, workID: workID, isSpeculative: true)
         }
         state = .generating
         logStage(
@@ -272,7 +283,11 @@ extension SuggestionCoordinator {
     /// Runs the engine generation for `request` as the replaceable work for `workID`, applying the
     /// result (or failure) only while it is still the current work. Extracted from
     /// `generateFromCurrentFocus` so that function stays within the project's complexity budget.
-    private func dispatchGeneration(request: SuggestionRequest, workID: UInt64) {
+    private func dispatchGeneration(
+        request: SuggestionRequest,
+        workID: UInt64,
+        isSpeculative: Bool = false
+    ) {
         // A new generation starts a new stream; the previous request's rendered-partial state
         // must not gate the new partials' monotonic checks. `isStreamDrainScheduled` is left
         // alone on purpose: an already-enqueued drain block cannot be unscheduled, and it
@@ -304,6 +319,13 @@ extension SuggestionCoordinator {
                     onPartial: onPartial
                 )
                 guard !Task.isCancelled, self.workController.isCurrent(workID) else {
+                    await self.recordStaleResultForRescue(
+                        result,
+                        request: request,
+                        isSpeculative: isSpeculative,
+                        isTaskCancelled: Task.isCancelled,
+                        workID: workID
+                    )
                     return
                 }
 
@@ -318,6 +340,43 @@ extension SuggestionCoordinator {
                 await applyFailure(error.localizedDescription, workID: workID)
             }
         }
+    }
+
+    /// A result that lost only the work-id race carries text the user may be typing through
+    /// right now. Recording it into the anchor cache lets `restoreSuggestionFromAnchorCache`
+    /// serve the typed-through remainder on the live keystroke's own cycle — behind the
+    /// disabled/typo/acceptance-echo/duplication guards, at the live caret — instead of paying
+    /// another full generation. Presenting directly from here was rejected in adversarial review
+    /// (2026-07-04 decision doc): it would rebuild a second, unaudited apply path.
+    private func recordStaleResultForRescue(
+        _ result: SuggestionResult,
+        request: SuggestionRequest,
+        isSpeculative: Bool,
+        isTaskCancelled: Bool,
+        workID: UInt64
+    ) {
+        guard StaleResultRescuePolicy.shouldRecord(
+            isEnabled: userDefaults.bool(forKey: Self.staleRescueEnabledDefaultsKey),
+            isTaskCancelled: isTaskCancelled,
+            isSpeculative: isSpeculative,
+            isSecure: request.context.isSecure,
+            normalizedText: result.text
+        ) else {
+            return
+        }
+
+        suggestionAnchorCache.record(
+            identityKey: request.context.focusedInputIdentityKey,
+            precedingText: request.context.precedingText,
+            fullText: result.text
+        )
+        logStage(
+            "stale-rescue-recorded",
+            workID: workID,
+            generation: result.generation,
+            message: "Recorded a superseded result for typed-through restore.",
+            normalizedOutput: result.text
+        )
     }
 
     /// Resolves the clipboard prompt section under the pinning policy documented on

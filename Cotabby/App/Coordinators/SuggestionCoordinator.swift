@@ -165,6 +165,10 @@ final class SuggestionCoordinator: ObservableObject {
     var suggestionAnchorCache = SuggestionAnchorCache()
     static let anchorReuseDisabledDefaultsKey = "cotabbyAnchorReuseDisabled"
     static let speculativePrefetchDisabledDefaultsKey = "cotabbySpeculativePrefetchDisabled"
+    /// Opt-in (default OFF, dogfood first): superseded-but-completed generations are recorded
+    /// into the anchor cache so the restore path can serve the typed-through remainder during
+    /// fluent typing. Flips on only with JSONL evidence per the decision doc's pre-registration.
+    static let staleRescueEnabledDefaultsKey = "cotabbyStaleRescueEnabled"
 
     /// Content signature a speculative post-acceptance generation was built against. While set,
     /// `apply` may accept a result whose generation predates the live one as long as the live
