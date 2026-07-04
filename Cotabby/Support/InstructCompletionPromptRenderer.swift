@@ -138,6 +138,12 @@ enum InstructCompletionPromptRenderer {
             "You are an inline autocomplete engine inside \(applicationName).",
             "Continue the user's text exactly from where it stops.",
             "Output only the continuation itself: no preamble, no quotes, never repeat any of the user's text.",
+            // The instruct path's unique lever over base checkpoints: it can be told to go
+            // silent. Base models treat every prompt as text to extend; this line is what lets
+            // the eval's negative cases (gibberish, finished thoughts, slots already filled by
+            // the text after the caret) end in suppression instead of a wrong show.
+            "If the text does not invite a continuation — gibberish, a finished thought, or "
+                + "content whose next words already exist after the caret — output nothing at all.",
             completionLengthInstruction
         ]
         if let language = nonEmpty(languageInstruction) {

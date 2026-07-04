@@ -63,6 +63,17 @@ final class InstructCompletionPromptRendererTests: XCTestCase {
         XCTAssertTrue(systemTurn.contains("Continue with 4 to 7 words."))
     }
 
+    func test_systemTurnTeachesSuppression() {
+        // The instruct model's unique lever over the base catalog: it can be TOLD to go silent.
+        // The eval's negative cases (gibberish, finished thoughts, content already present after
+        // the caret) are the metric; only a model with an instruction channel can act on this.
+        let systemTurn = render().components(separatedBy: "<|im_end|>").first ?? ""
+        XCTAssertTrue(
+            systemTurn.contains("output nothing"),
+            "the suppression rule must live in the system turn"
+        )
+    }
+
     func test_tightTokenBudgetKeepsTheEndOfThePrefix() {
         let head = "HEADHEADHEAD "
         let tail = "the caret is right here"
