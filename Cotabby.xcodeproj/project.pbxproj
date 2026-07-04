@@ -294,6 +294,7 @@
 		5D083F544CF36CF6DFA34CB1 /* GhostTextColorPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E44E393DD58B978B1EAB6CF /* GhostTextColorPreset.swift */; };
 		5DF31F465A3A1233260BD3A4 /* EngineAndModelPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC9ECD5408B0F5708149B5C0 /* EngineAndModelPaneView.swift */; };
 		5E10EFC426217CB7218A5847 /* CotabbyTestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1E065C7FFB697FCEB2FA5C /* CotabbyTestFixtures.swift */; };
+		5E3A3DCD49B1FDCC632EACE4 /* CorrectionIdlePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDDC783CA75B6297FC70FD22 /* CorrectionIdlePolicy.swift */; };
 		5E77261BAF8365B69F08DB67 /* FieldEdgeIconIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBD5FCB8CC56AA6138382B2C /* FieldEdgeIconIndicatorView.swift */; };
 		5E92E3C1EB41D482FC06BC52 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AA0117B322C625F6D4BBEAB /* MenuBarView.swift */; };
 		5ED4272F22F0FB0DF2AE0AE1 /* MPL-2.0.txt in Resources */ = {isa = PBXBuildFile; fileRef = 4E283DF8948B10268B46811F /* MPL-2.0.txt */; };
@@ -378,6 +379,7 @@
 		7D9C3D733CE7633FB12A35BE /* BrowserDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD8025E4A296845FC53E660D /* BrowserDomain.swift */; };
 		7DCA61581FD8ECA6565A69F6 /* DisplayCoordinateConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74BD1D4DB27D5D96D1E06096 /* DisplayCoordinateConverter.swift */; };
 		7DEFC57991AB0C5379AD9CBF /* SuggestionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 386C98FFCF76EC1C8C7E82BB /* SuggestionModels.swift */; };
+		7E487F604A76AE0E6B8736A6 /* CorrectionIdlePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDDC783CA75B6297FC70FD22 /* CorrectionIdlePolicy.swift */; };
 		7E505E25BD9C45F0DBE2796C /* AppUpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD9573F3504CAE6891DF9B7D /* AppUpdateManager.swift */; };
 		7E9413CE7C999C4612348248 /* SuggestionSessionReconcilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8F07AC52C7A482F5FE34C5 /* SuggestionSessionReconcilerTests.swift */; };
 		7E99F5676A1D1DF7EA7D7702 /* SuggestionCoordinator+Prediction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ED1EA9282E0AC7592E60889 /* SuggestionCoordinator+Prediction.swift */; };
@@ -506,6 +508,7 @@
 		AF86357E50ADC91838446A9A /* AcknowledgementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B7A28471B8526C2693FFF65 /* AcknowledgementsView.swift */; };
 		B00FDD3DEE0B73FF5136C91C /* FocusTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C9FDF029F7828CAF3FE8850 /* FocusTracker.swift */; };
 		B02F46E94F74BAEBB90E165A /* PerformanceMetricsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 979A7867966180A545BB44C4 /* PerformanceMetricsStore.swift */; };
+		B05BF9C406A74ED6F235DD32 /* CorrectionIdlePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12DCF1CA1A5CE7C8CFAD2FE7 /* CorrectionIdlePolicyTests.swift */; };
 		B0B115C6EBAC37FF6115B4BE /* SuggestionCoordinator+Lifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E280F4F39A9D86840800D2 /* SuggestionCoordinator+Lifecycle.swift */; };
 		B28858F6562717C3E3690E58 /* AXTrailingTextRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 193090CBEE76A2757D388414 /* AXTrailingTextRecovery.swift */; };
 		B2BDCFF0824EE41FC1C0451A /* FocusSnapshotResolverLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67D57F248880978A09DD28A6 /* FocusSnapshotResolverLiveTests.swift */; };
@@ -761,6 +764,7 @@
 		0F5E263AB69029D5E13D5EE8 /* FocusDebugOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusDebugOverlayController.swift; sourceTree = "<group>"; };
 		110CB0B53016644EF7840301 /* HuggingFaceAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HuggingFaceAPIClient.swift; sourceTree = "<group>"; };
 		1274F897631B1B3A835D157F /* MidWordContinuationPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MidWordContinuationPolicyTests.swift; sourceTree = "<group>"; };
+		12DCF1CA1A5CE7C8CFAD2FE7 /* CorrectionIdlePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionIdlePolicyTests.swift; sourceTree = "<group>"; };
 		12DD19BCE610808F1E38702D /* PermissionOverlayTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionOverlayTrackerTests.swift; sourceTree = "<group>"; };
 		12E1E72C09460390583D98D1 /* SymSpellCorrector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SymSpellCorrector.swift; sourceTree = "<group>"; };
 		1441B2D89DAE6878DAD11F17 /* EmojiMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiMatcher.swift; sourceTree = "<group>"; };
@@ -1077,6 +1081,7 @@
 		CBD5FCB8CC56AA6138382B2C /* FieldEdgeIconIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldEdgeIconIndicatorView.swift; sourceTree = "<group>"; };
 		CC1EDFB535AAA2EE0D67828A /* CotabbyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CotabbyApp.swift; sourceTree = "<group>"; };
 		CDB25ABC4FFB0E63477CDCB0 /* SuggestionOverlayStabilityGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionOverlayStabilityGateTests.swift; sourceTree = "<group>"; };
+		CDDC783CA75B6297FC70FD22 /* CorrectionIdlePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionIdlePolicy.swift; sourceTree = "<group>"; };
 		CE0AA0503128B0FC3951D700 /* SuggestionSessionReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionSessionReconciler.swift; sourceTree = "<group>"; };
 		CE8C2569A8217EE9BD3B197F /* FileLogHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileLogHandler.swift; sourceTree = "<group>"; };
 		D0AF9479EF020071CA64CCC1 /* HuggingFaceModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HuggingFaceModelsTests.swift; sourceTree = "<group>"; };
@@ -1505,6 +1510,7 @@
 				EC4A3C4BC38793EB11F484F1 /* CompositionInputModeClassifierTests.swift */,
 				06FF2B0A3094A952A8EBA9B5 /* ConfidenceSuppressionPolicyTests.swift */,
 				22707E26E2106DF0E826D32D /* ControlTokenMarkersTests.swift */,
+				12DCF1CA1A5CE7C8CFAD2FE7 /* CorrectionIdlePolicyTests.swift */,
 				93AF1246C1C2E296A1162E63 /* CotabbyDebugOptionsTests.swift */,
 				AF1E065C7FFB697FCEB2FA5C /* CotabbyTestFixtures.swift */,
 				1C4751DFE9DA372FBC40BA30 /* CurrentWordExtractorTests.swift */,
@@ -1779,6 +1785,7 @@
 				4F283E5B403F9FEBFB4BA04A /* CompositionInputModeClassifier.swift */,
 				1BD71ECC2AE4821B643E0935 /* ConfidenceSuppressionPolicy.swift */,
 				9CC2D6472ACD377FD73A5801 /* ControlTokenMarkers.swift */,
+				CDDC783CA75B6297FC70FD22 /* CorrectionIdlePolicy.swift */,
 				C7B2D34A6F3AC9DFD61350F7 /* CotabbyDebugOptions.swift */,
 				247561C626843957CFB4B632 /* CurrentWordExtractor.swift */,
 				6DC17643448271DE5DE61A89 /* DebouncePolicy.swift */,
@@ -2101,6 +2108,7 @@
 				2F1E57A89D1DC775E8880297 /* ContextLivePreviewField.swift in Sources */,
 				930BA578E742D96FD9D340ED /* ContextPaneView.swift in Sources */,
 				53480635FD54DAF41B1F5047 /* ControlTokenMarkers.swift in Sources */,
+				7E487F604A76AE0E6B8736A6 /* CorrectionIdlePolicy.swift in Sources */,
 				B55B160E0534AE23BAC1C3DA /* CotabbyApp.swift in Sources */,
 				AF55F1ABEDEA10C76C307CEC /* CotabbyAppEnvironment.swift in Sources */,
 				C5275D0DA6F5A9D6BFED943D /* CotabbyBrand.swift in Sources */,
@@ -2356,6 +2364,7 @@
 				FB0E2CE46002270A254E5FB3 /* ContextLivePreviewField.swift in Sources */,
 				2089E4C64C1BFDCDA9F2F721 /* ContextPaneView.swift in Sources */,
 				210EEE9D094586286EDD89E8 /* ControlTokenMarkers.swift in Sources */,
+				5E3A3DCD49B1FDCC632EACE4 /* CorrectionIdlePolicy.swift in Sources */,
 				AA2E09FF7E430D66ECA8ECD5 /* CotabbyApp.swift in Sources */,
 				FCC571EC239846F06007BFCA /* CotabbyAppEnvironment.swift in Sources */,
 				4701AB8E93FA78B808824AAD /* CotabbyBrand.swift in Sources */,
@@ -2595,6 +2604,7 @@
 				2A53558D66C96E963B23CA11 /* CompositionInputModeClassifierTests.swift in Sources */,
 				91D8189EFCD1BA992EA6F038 /* ConfidenceSuppressionPolicyTests.swift in Sources */,
 				5009AF59DE8D40A45C0A5C2F /* ControlTokenMarkersTests.swift in Sources */,
+				B05BF9C406A74ED6F235DD32 /* CorrectionIdlePolicyTests.swift in Sources */,
 				D21EBD25BCB37E69B633BC00 /* CotabbyDebugOptionsTests.swift in Sources */,
 				5E10EFC426217CB7218A5847 /* CotabbyTestFixtures.swift in Sources */,
 				64599CD334AAD79266224689 /* CurrentWordExtractorTests.swift in Sources */,

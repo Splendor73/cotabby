@@ -472,7 +472,7 @@ extension SuggestionCoordinator {
             )
             return true
         case let .offerCorrection(word, correctedWord):
-            presentCorrection(
+            presentOrDeferCorrection(
                 typoWord: word,
                 correctedWord: correctedWord,
                 rawContext: rawContext,
@@ -576,6 +576,43 @@ extension SuggestionCoordinator {
         // Synthetic replacement is asynchronous from the host editor's perspective. Poll until AX
         // publishes the corrected text before asking for the next continuation.
         schedulePredictionAfterHostPublishDelay()
+    }
+
+    /// A correction painted mid-burst is invalidated by the very next keystroke 20-140ms later —
+    /// live logs showed up to three green paint/vanish cycles per second while typing through a
+    /// word. When the keyboard has not been quiet long enough, the presentation is deferred
+    /// through the same latest-wins debounced work used for generation: a newer keystroke
+    /// silently replaces the re-check, and a real pause re-runs the full cycle (typo gate
+    /// included, against the then-current word) once the correction can actually be read.
+    private func presentOrDeferCorrection(
+        typoWord: String,
+        correctedWord: String,
+        rawContext: FocusedInputSnapshot,
+        workID: UInt64
+    ) {
+        if let delayMilliseconds = CorrectionIdlePolicy.remainingDelayMilliseconds(
+            now: Date(),
+            lastKeystrokeAt: lastTextMutationAt
+        ) {
+            let deferredWorkID = workController.replaceDebouncedWork(
+                delayMilliseconds: delayMilliseconds
+            ) { [weak self] newWorkID in
+                await self?.generateFromCurrentFocus(workID: newWorkID)
+            }
+            logStage(
+                "typo-correction-deferred",
+                workID: deferredWorkID,
+                message: "Holding the correction until typing pauses (\(delayMilliseconds)ms)."
+            )
+            return
+        }
+
+        presentCorrection(
+            typoWord: typoWord,
+            correctedWord: correctedWord,
+            rawContext: rawContext,
+            workID: workID
+        )
     }
 
     /// Presents a native spell-checker correction as a replace-the-word suggestion, with no model

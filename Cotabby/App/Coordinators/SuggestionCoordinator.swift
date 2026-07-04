@@ -110,6 +110,10 @@ final class SuggestionCoordinator: ObservableObject {
     var isStreamDrainScheduled = false
     var streamRenderedText: String?
 
+    /// Tap-time moment of the last text-mutating key event. `CorrectionIdlePolicy` measures
+    /// keyboard quiet against this so spell-checker corrections stop flickering mid-burst.
+    var lastTextMutationAt: Date?
+
     /// Monotonic cancellation token for the "wait until the host publishes typed text to AX" loop.
     ///
     /// Keystrokes can arrive faster than Chromium publishes contenteditable updates. Without this
