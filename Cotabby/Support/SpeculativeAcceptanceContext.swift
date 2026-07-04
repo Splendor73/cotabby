@@ -39,7 +39,15 @@ nonisolated enum SpeculativeAcceptanceContext {
                 length: 0
             ),
             isSecure: snapshot.isSecure,
+            // Every field must be copied EXPLICITLY: the memberwise initializer's defaulted
+            // parameters silently reset anything omitted, and two flags were lost exactly that
+            // way (`isTrailingTextReliable`, `isWebContentField`) — changing prompt bytes and
+            // normalizer behavior for the speculative generation in the Chromium fields where
+            // those flags matter. The identity test in SpeculativeAcceptanceContextTests trips
+            // if a future FocusedInputSnapshot field is forgotten here.
+            isTrailingTextReliable: snapshot.isTrailingTextReliable,
             isIntegratedTerminal: snapshot.isIntegratedTerminal,
+            isWebContentField: snapshot.isWebContentField,
             focusChangeSequence: snapshot.focusChangeSequence,
             focusedURLString: snapshot.focusedURLString,
             resolvedFieldStyle: snapshot.resolvedFieldStyle,

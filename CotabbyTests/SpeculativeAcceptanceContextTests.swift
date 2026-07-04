@@ -40,4 +40,45 @@ final class SpeculativeAcceptanceContextTests: XCTestCase {
         let autocorrected = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello World")
         XCTAssertNotEqual(optimistic.contentSignature, autocorrected.contentSignature)
     }
+
+    /// Identity property: inserting nothing must reproduce the snapshot EXACTLY. This is the
+    /// tripwire for the silent-field-drop class of bug — the copy went through the memberwise
+    /// initializer, whose defaulted parameters quietly reset any field the copy forgot
+    /// (`isTrailingTextReliable` and `isWebContentField` were being reset this way, changing
+    /// prompt bytes and normalizer behavior for the speculative generation in exactly the
+    /// Chromium fields where those flags matter).
+    func testInsertingNothingIsIdentity_noFieldSilentlyDropped() {
+        let base = FocusedInputSnapshot(
+            applicationName: "Claude",
+            bundleIdentifier: "com.anthropic.claudefordesktop",
+            processIdentifier: 77,
+            elementIdentifier: "field-x",
+            role: "AXTextArea",
+            subrole: "AXSub",
+            caretRect: CGRect(x: 1, y: 2, width: 3, height: 4),
+            inputFrameRect: CGRect(x: 5, y: 6, width: 7, height: 8),
+            caretSource: "derived primary",
+            caretQuality: .derived,
+            observedCharWidth: 7.5,
+            observedContentEdges: nil,
+            precedingText: "Hello ",
+            trailingText: "",
+            selection: NSRange(location: 6, length: 0),
+            isSecure: false,
+            // The two fields the old copy silently reset — deliberately non-default here.
+            isTrailingTextReliable: false,
+            isIntegratedTerminal: true,
+            isWebContentField: true,
+            focusChangeSequence: 42,
+            focusedURLString: "https://example.com",
+            resolvedFieldStyle: nil,
+            windowTitle: "Draft",
+            fieldPlaceholder: "Type here"
+        )
+
+        XCTAssertEqual(
+            SpeculativeAcceptanceContext.optimisticSnapshot(after: base, inserting: ""),
+            base
+        )
+    }
 }
