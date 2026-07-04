@@ -769,10 +769,14 @@ extension SuggestionCoordinator {
         // Closes the felt-latency interval opened by the "keystroke" stage line (see
         // scripts/bench/paint_metric.py). Logged on every presentation; the metric script keeps
         // only the first paint after each keystroke, so streamed partials measure correctly.
+        // Geometry rides along so a reported misplacement (wrong line, bottom-of-window overlap)
+        // is diagnosable from the single line closest to the incident.
         logStage(
             "painted",
             workID: currentWorkID,
-            message: "Ghost text presented."
+            message: "Ghost text presented. rect=(\(Int(anchor.rect.origin.x)),\(Int(anchor.rect.origin.y)),"
+                + "\(Int(anchor.rect.width))x\(Int(anchor.rect.height))) quality=\(anchor.quality) "
+                + "eol=\(context.isCaretAtEndOfLine) app=\(context.applicationName)"
         )
     }
 
