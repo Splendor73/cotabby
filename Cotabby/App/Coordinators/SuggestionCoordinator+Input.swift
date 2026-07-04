@@ -156,7 +156,21 @@ extension SuggestionCoordinator {
         }
     }
 
+    /// Anchor for the felt-latency metric: this line's timestamp is the keystroke moment, and the
+    /// next "painted" stage line closes the keystroke→ghost-paint interval that
+    /// scripts/bench/paint_metric.py measures. Everything else the pipeline logs (debounce,
+    /// generating) starts AFTER the host-publish wait, which is exactly the blind spot.
+    private func logKeystrokeArrivalForPaintMetric(_ event: CapturedInputEvent) {
+        guard event.kind == .textMutation else { return }
+        logStage(
+            "keystroke",
+            workID: currentWorkID,
+            message: "Text-mutating key event observed."
+        )
+    }
+
     func handleInputEvent(_ event: CapturedInputEvent) -> Bool {
+        logKeystrokeArrivalForPaintMetric(event)
         // Give the emoji picker first look at every keystroke so it can drive its trigger state
         // machine. When a capture is involved, the picker owns the interaction: the suggestion
         // pipeline stands down and any lingering ghost text is cleared so it does not show behind the

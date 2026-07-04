@@ -766,6 +766,14 @@ extension SuggestionCoordinator {
         ) {
             latestOverlayMessage = message
         }
+        // Closes the felt-latency interval opened by the "keystroke" stage line (see
+        // scripts/bench/paint_metric.py). Logged on every presentation; the metric script keeps
+        // only the first paint after each keystroke, so streamed partials measure correctly.
+        logStage(
+            "painted",
+            workID: currentWorkID,
+            message: "Ghost text presented."
+        )
     }
 
     /// Repairs untrustworthy caret anchors with a hidden-text-layout estimate before presentation.
