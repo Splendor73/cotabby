@@ -31,9 +31,18 @@ import XCTest
 /// dataset. A JSON artifact is written to `build/eval/` (gitignored) for diffing runs.
 @MainActor
 final class LlamaSuggestionEvalTests: XCTestCase {
+    /// Optional per-run model override so a benchmark script can sweep the whole catalog:
+    /// `defaults write <test-host bundle id> cotabbyEvalModelFilename <file>.gguf`. xcodebuild
+    /// does not forward environment variables into the test host, so UserDefaults is the channel.
+    static let evalModelDefaultsKey = "cotabbyEvalModelFilename"
+
     func test_reportEvalSuite() async throws {
         #if RUN_LLAMA_EVAL
         let manager = LlamaRuntimeManager()
+        let requestedModelFilename = UserDefaults.standard.string(forKey: Self.evalModelDefaultsKey)
+        if let requestedModelFilename {
+            manager.configureSelectedModel(filename: requestedModelFilename)
+        }
         do {
             try await manager.prepare()
         } catch {
@@ -46,17 +55,30 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         let spellChecker = CurrentWordSpellChecker()
         let cases = try Self.loadCases()
 
+        // Mirror production renderer selection: the active model's profile decides the prompt
+        // style, and the loaded runtime's reported window sizes the prompt budget. Without this
+        // an instruct model would be measured on the base-continuation prompt it never sees live.
+        let activeModelFilename = manager.currentModelFilename
+        let promptStyle = RuntimeModelCatalog.profile(for: activeModelFilename)?.promptStyle
+            ?? .baseContinuation
+        let runtimeContextWindowTokens = manager.diagnostics.contextWindowTokens.map(Int32.init)
+
         var results: [LlamaEvalCaseResult] = []
         for evalCase in cases {
             let result = try await Self.runCase(
                 evalCase,
                 engine: engine,
-                spellChecker: spellChecker
+                spellChecker: spellChecker,
+                promptStyle: promptStyle,
+                runtimeContextWindowTokens: runtimeContextWindowTokens
             )
             results.append(result)
         }
 
-        let report = LlamaEvalReport(modelLabel: Self.modelLabel(), results: results)
+        let report = LlamaEvalReport(
+            modelLabel: activeModelFilename ?? Self.modelLabel(),
+            results: results
+        )
         print(report.rendered())
         try Self.writeArtifact(report)
 
@@ -75,7 +97,9 @@ final class LlamaSuggestionEvalTests: XCTestCase {
     private static func runCase(
         _ evalCase: LlamaEvalCase,
         engine: LlamaSuggestionEngine,
-        spellChecker: CurrentWordSpellChecker
+        spellChecker: CurrentWordSpellChecker,
+        promptStyle: PromptStyle,
+        runtimeContextWindowTokens: Int32?
     ) async throws -> LlamaEvalCaseResult {
         // Mirrors the coordinator's pre-generation gate.
         guard SuggestionRequestFactory.shouldGenerateSuggestion(for: evalCase.precedingText) else {
@@ -104,7 +128,9 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         let request = SuggestionRequestFactory.buildRequest(
             context: context,
             settings: settings,
-            configuration: .standard
+            configuration: .standard,
+            runtimeContextWindowTokens: runtimeContextWindowTokens,
+            promptStyle: promptStyle
         ).request
 
         let start = Date()
