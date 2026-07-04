@@ -20,6 +20,9 @@ enum CompletionSuppressionReason: String, Sendable, Equatable {
     case normalizedToEmpty
     /// The completion began by repeating text that already follows the caret.
     case duplicatesTrailingText
+    /// The completion opened by competing for the slot the trailing text already fills (same
+    /// leading character class at a tight seam) — a rival continuation, not an echo.
+    case conflictsWithTrailingText
     /// The completion echoed the tail of the preceding text in full, leaving nothing new to add.
     case echoesPrecedingText
     /// Printable characters survived but carried control/replacement glyphs the safety gate rejects.
@@ -130,6 +133,18 @@ enum SuggestionTextNormalizer {
             trailingText: request.context.trailingText
         ) {
             return SuggestionNormalizationResult(text: "", suppression: .duplicatesTrailingText)
+        }
+
+        // Distinct from duplication: at a tight seam the completion can *rival* the trailing
+        // text instead of echoing it ("3|:30 tomorrow" drawing ":00 p.m."). Runs only when the
+        // trailing text is trustworthy — an unreadable trailing range (Electron) must not
+        // suppress on ghosts of text we never actually saw.
+        if request.context.isTrailingTextReliable,
+           TightSeamConflictGuard.conflictsWithTrailingText(
+               completion: normalized,
+               trailingText: request.context.trailingText
+           ) {
+            return SuggestionNormalizationResult(text: "", suppression: .conflictsWithTrailingText)
         }
 
         // Echo suppression: strip any leading words that repeat the tail of the preceding text.
