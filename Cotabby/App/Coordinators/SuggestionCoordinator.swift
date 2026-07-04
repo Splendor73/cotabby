@@ -150,11 +150,10 @@ final class SuggestionCoordinator: ObservableObject {
     /// request-build time so every build site in one session renders with the same template.
     let activeLlamaModelFilenameProvider: () -> String?
 
-    /// The prompt style of the active llama model (conservative base render when none is loaded
-    /// or the model has no profile).
-    var activeLlamaPromptStyle: PromptStyle {
-        RuntimeModelCatalog.profile(for: activeLlamaModelFilenameProvider())?.promptStyle
-            ?? .baseContinuation
+    /// The active llama model's profile (nil when none is loaded or the model has none), so
+    /// request builds render with the right template and sampling for whatever is running.
+    var activeLlamaModelProfile: RuntimeModelProfile? {
+        RuntimeModelCatalog.profile(for: activeLlamaModelFilenameProvider())
     }
 
     /// Bounded string-only memory of recent suggestions for instant re-show on rollback and

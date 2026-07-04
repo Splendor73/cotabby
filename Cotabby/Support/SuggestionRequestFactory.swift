@@ -37,8 +37,9 @@ enum SuggestionRequestFactory {
         visualContextSummary: String? = nil,
         seedOverride: UInt32? = nil,
         runtimeContextWindowTokens: Int32? = nil,
-        promptStyle: PromptStyle = .baseContinuation
+        modelProfile: RuntimeModelProfile? = nil
     ) -> SuggestionRequestBuildResult {
+        let promptStyle = modelProfile?.promptStyle ?? .baseContinuation
         let prefixText = truncatedPromptPrefix(
             from: context.precedingText,
             configuration: configuration,
@@ -144,10 +145,13 @@ enum SuggestionRequestFactory {
                 responseLanguages: settings.responseLanguages,
                 isMultiLineEnabled: settings.isMultiLineEnabled
             ),
-            temperature: configuration.temperature,
-            topK: configuration.topK,
-            topP: configuration.topP,
-            minP: configuration.minP,
+            // Per-model sampling wins over the global tuning: the base catalog's conservative
+            // values (temp 0.1) were never right for instruct checkpoints, and each family's
+            // values are eval-swept before landing in a profile.
+            temperature: modelProfile?.temperature ?? configuration.temperature,
+            topK: modelProfile?.topK ?? configuration.topK,
+            topP: modelProfile?.topP ?? configuration.topP,
+            minP: modelProfile?.minP ?? configuration.minP,
             repetitionPenalty: configuration.repetitionPenalty,
             // A retry after a dismissal walks the seed (see RetrySeedTracker) so the regeneration
             // does not reproduce the rejected suggestion; every other request keeps the stable

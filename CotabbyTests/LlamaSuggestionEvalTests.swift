@@ -59,8 +59,7 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         // style, and the loaded runtime's reported window sizes the prompt budget. Without this
         // an instruct model would be measured on the base-continuation prompt it never sees live.
         let activeModelFilename = manager.currentModelFilename
-        let promptStyle = RuntimeModelCatalog.profile(for: activeModelFilename)?.promptStyle
-            ?? .baseContinuation
+        let modelProfile = RuntimeModelCatalog.profile(for: activeModelFilename)
         let runtimeContextWindowTokens = manager.diagnostics.contextWindowTokens.map(Int32.init)
 
         var results: [LlamaEvalCaseResult] = []
@@ -69,7 +68,7 @@ final class LlamaSuggestionEvalTests: XCTestCase {
                 evalCase,
                 engine: engine,
                 spellChecker: spellChecker,
-                promptStyle: promptStyle,
+                modelProfile: modelProfile,
                 runtimeContextWindowTokens: runtimeContextWindowTokens
             )
             results.append(result)
@@ -98,7 +97,7 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         _ evalCase: LlamaEvalCase,
         engine: LlamaSuggestionEngine,
         spellChecker: CurrentWordSpellChecker,
-        promptStyle: PromptStyle,
+        modelProfile: RuntimeModelProfile?,
         runtimeContextWindowTokens: Int32?
     ) async throws -> LlamaEvalCaseResult {
         // Mirrors the coordinator's pre-generation gate.
@@ -130,7 +129,7 @@ final class LlamaSuggestionEvalTests: XCTestCase {
             settings: settings,
             configuration: .standard,
             runtimeContextWindowTokens: runtimeContextWindowTokens,
-            promptStyle: promptStyle
+            modelProfile: modelProfile
         ).request
 
         let start = Date()

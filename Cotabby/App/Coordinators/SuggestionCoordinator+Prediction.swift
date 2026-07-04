@@ -122,7 +122,7 @@ extension SuggestionCoordinator {
             // dismissed; the walked seed keeps the retry from reproducing the rejected text.
             seedOverride: retrySeedTracker.seedOverride(for: context.contentSignature),
             runtimeContextWindowTokens: runtimeContextWindowTokensProvider(),
-            promptStyle: activeLlamaPromptStyle
+            modelProfile: activeLlamaModelProfile
         )
         latestGenerationNumber = context.generation
         latestPromptPreview = requestBuildResult.promptPreview
@@ -247,7 +247,7 @@ extension SuggestionCoordinator {
             clipboardContext: clipboardContext,
             visualContextSummary: visualContextSummary,
             runtimeContextWindowTokens: runtimeContextWindowTokensProvider(),
-            promptStyle: activeLlamaPromptStyle
+            modelProfile: activeLlamaModelProfile
         )
         latestGenerationNumber = context.generation
         latestPromptPreview = requestBuildResult.promptPreview

@@ -125,7 +125,9 @@ final class PromptStyleSelectionTests: XCTestCase {
             context: makeContext(trailingText: trailingText, isTrailingTextReliable: reliable),
             settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .llamaOpenSource),
             configuration: .standard,
-            promptStyle: promptStyle
+            modelProfile: promptStyle == .instruct
+                ? RuntimeModelProfile(promptStyle: .instruct)
+                : nil
         ).request.prompt
     }
 

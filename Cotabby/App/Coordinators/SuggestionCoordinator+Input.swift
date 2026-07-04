@@ -150,7 +150,7 @@ extension SuggestionCoordinator {
                 settings: settings,
                 configuration: configuration,
                 runtimeContextWindowTokens: self.runtimeContextWindowTokensProvider(),
-                promptStyle: self.activeLlamaPromptStyle
+                modelProfile: self.activeLlamaModelProfile
             ).request
             await suggestionEngine.prewarm(for: request)
         }

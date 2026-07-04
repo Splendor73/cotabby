@@ -112,6 +112,13 @@ struct RuntimeModelProfile: Equatable, Sendable {
     /// Prompt render for this model. Templates are scoped to catalog-listed filenames only —
     /// never guessed for unknown models, where a wrong template reads as scaffolding leakage.
     var promptStyle: PromptStyle = .baseContinuation
+    /// Per-model sampling overrides. Nil fields fall through to `SuggestionConfiguration`'s
+    /// global tuning (which was swept for the base catalog); values land here only after an
+    /// eval-matrix comparison, never from a model card alone.
+    var temperature: Double?
+    var topK: Int?
+    var topP: Double?
+    var minP: Double?
 }
 
 enum RuntimeModelCatalog {

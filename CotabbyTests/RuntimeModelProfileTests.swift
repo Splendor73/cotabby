@@ -11,6 +11,66 @@ final class RuntimeModelProfileTests: XCTestCase {
         XCTAssertEqual(profile?.contextWindowTokens, 4096)
     }
 
+    func test_samplingOverridesDefaultToNil_keepingGlobalTuning() {
+        // Sampling fields exist so a profiled model can carry its family's recommended values,
+        // but they must be opt-in per field: a profile that only sets the context window keeps
+        // the global configuration's sampling untouched.
+        let profile = RuntimeModelProfile(contextWindowTokens: 4096)
+        XCTAssertNil(profile.temperature)
+        XCTAssertNil(profile.topK)
+        XCTAssertNil(profile.topP)
+        XCTAssertNil(profile.minP)
+    }
+
+    func test_factoryAppliesProfileSamplingOverConfiguration() {
+        let context = FocusedInputContext(
+            snapshot: FocusedInputSnapshot(
+                applicationName: "Mail",
+                bundleIdentifier: "com.apple.mail",
+                processIdentifier: 1,
+                elementIdentifier: "field",
+                role: "AXTextArea",
+                subrole: nil,
+                caretRect: .zero,
+                inputFrameRect: nil,
+                caretSource: "test",
+                caretQuality: .exact,
+                observedCharWidth: nil,
+                precedingText: "Hello team, the plan for",
+                trailingText: "",
+                selection: NSRange(location: 24, length: 0),
+                isSecure: false
+            ),
+            generation: 1
+        )
+        let profile = RuntimeModelProfile(
+            contextWindowTokens: 4096,
+            promptStyle: .instruct,
+            temperature: 0.7,
+            topK: 20,
+            topP: 0.8,
+            minP: 0.0
+        )
+
+        let overridden = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .llamaOpenSource),
+            configuration: .standard,
+            modelProfile: profile
+        ).request
+        XCTAssertEqual(overridden.temperature, 0.7)
+        XCTAssertEqual(overridden.topP, 0.8)
+        XCTAssertEqual(overridden.minP, 0.0)
+
+        let untouched = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .llamaOpenSource),
+            configuration: .standard,
+            modelProfile: nil
+        ).request
+        XCTAssertEqual(untouched.temperature, SuggestionConfiguration.standard.temperature)
+    }
+
     func test_hybridCatalogModels_haveNoProfile() {
         // The hybrid/SWA base models keep the global default; a profile exists only where a
         // deliberate, evaluated decision overrides it.
