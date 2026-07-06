@@ -42,6 +42,33 @@ struct SuggestionNormalizationResult: Equatable, Sendable {
 }
 
 enum SuggestionTextNormalizer {
+    /// Length bounds applied before the content filters, so duplication and seam checks judge
+    /// exactly the text that will be shown: the line-mode clip (first line, or first paragraph in
+    /// multi-line mode) followed by the user's word-count ceiling. The prompt's length
+    /// instruction is guidance small models routinely overrun; the word cap is the enforcement.
+    private static func boundedToLineModeAndWordCap(
+        _ text: String,
+        request: SuggestionRequest
+    ) -> String {
+        var bounded = text
+        if request.isMultiLineEnabled {
+            // Keep content up to the first blank-line boundary (double newline) to prevent
+            // runaway paragraph generation while still allowing multi-line completions.
+            if let blankLine = bounded.range(of: "\n\n") {
+                bounded = String(bounded[..<blankLine.lowerBound])
+            }
+            bounded = bounded.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if let firstLine = bounded.split(separator: "\n", maxSplits: 1).first {
+            // Single-line mode: only surface the immediate continuation line.
+            bounded = String(firstLine)
+        }
+
+        if let maxCompletionWords = request.maxCompletionWords {
+            bounded = CompletionWordCap.trim(bounded, maxWords: maxCompletionWords)
+        }
+        return bounded
+    }
+
     /// Convenience wrapper returning only the ghost text. Callers that want to know *why* an empty
     /// result came back (for diagnostics / on-device decode evaluation) should call
     /// `normalizeDetailed` instead, which is the single source of truth this delegates to.
@@ -111,19 +138,7 @@ enum SuggestionTextNormalizer {
         normalized = stripLeadingScaffoldingLabels(normalized)
         normalized = normalized.trimmingCharacters(in: .newlines)
 
-        if request.isMultiLineEnabled {
-            // Multi-line mode: keep content up to the first blank-line boundary (double newline)
-            // to prevent runaway paragraph generation while still allowing multi-line completions.
-            if let blankLine = normalized.range(of: "\n\n") {
-                normalized = String(normalized[..<blankLine.lowerBound])
-            }
-            normalized = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
-        } else {
-            // Single-line mode: only surface the immediate continuation line.
-            if let firstLine = normalized.split(separator: "\n", maxSplits: 1).first {
-                normalized = String(firstLine)
-            }
-        }
+        normalized = boundedToLineModeAndWordCap(normalized, request: request)
 
         // If the model starts by repeating text that already exists after the caret, we treat the
         // suggestion as unusable. Showing only the remainder often produces confusing mid-word

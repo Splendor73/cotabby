@@ -167,6 +167,8 @@ enum SuggestionRequestFactory {
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
             isMultiLineEnabled: settings.isMultiLineEnabled,
+            // The instruction above is guidance; this is the enforcement (normalizer word trim).
+            maxCompletionWords: settings.effectiveWordRange.highWords,
             requestID: RequestID.generate()
         )
 
