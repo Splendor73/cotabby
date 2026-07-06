@@ -34,6 +34,10 @@ extension SuggestionCoordinator {
         cancelPredictionWork()
         resetCachedGenerationContext()
         interactionState.resetAll()
+        // The anchor cache re-serves previously generated text without a model round-trip, so it
+        // must not outlive the model that produced it: entries live up to 180s, long enough for
+        // the old model's completions to surface as instant "restores" after the switch.
+        suggestionAnchorCache.removeAll()
         visualContextCoordinator.cancel(resetState: true)
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: "Overlay hidden because the runtime model is switching.")
@@ -55,6 +59,9 @@ extension SuggestionCoordinator {
         settingsSnapshot = snapshot
         cancelPredictionWork()
         resetCachedGenerationContext()
+        // Cached anchors were generated under the previous settings (engine, length cap, rules);
+        // re-serving them sidesteps every behavior the user just changed.
+        suggestionAnchorCache.removeAll()
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: "Overlay hidden because autocomplete settings changed.")
         state = .idle
