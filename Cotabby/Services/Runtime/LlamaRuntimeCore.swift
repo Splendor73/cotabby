@@ -186,6 +186,17 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         // must clear it so a late abort can never flag a recycled sequence slot.
         defer { clearAbortTarget() }
 
+        // Same queued-cancel guard as `prefill`, and the hotter path by far: a superseding
+        // keystroke cancels tasks that are still WAITING on the lock above, but the engine-level
+        // abort only reaches a decode that already published its target, and the first
+        // cooperative check below sits inside the per-token loop — after the full prompt decode.
+        // Without this, every cancelled-while-queued generation still burned its whole prefill
+        // (~270ms) holding the lock, and fresh requests waited behind a train of zombies
+        // (measured: 4 zombies = 1.3s added to one visible suggestion).
+        guard !Task.isCancelled else {
+            throw CancellationError()
+        }
+
         let sequenceID = try obtainAutocompleteSequence(
             promptTokens: preparation.promptTokens,
             promptBytes: preparation.promptBytes,
