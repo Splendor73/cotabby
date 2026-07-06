@@ -126,6 +126,7 @@ final class VisualContextModelTests: XCTestCase {
         let id = UUID()
         let sessionA = FocusedInputAugmentationSession(
             sessionID: id,
+            processIdentifier: 100,
             elementIdentifier: "field1",
             focusChangeSequence: 1,
             status: .idle,
@@ -133,6 +134,7 @@ final class VisualContextModelTests: XCTestCase {
         )
         var sessionB = FocusedInputAugmentationSession(
             sessionID: id,
+            processIdentifier: 100,
             elementIdentifier: "field1",
             focusChangeSequence: 1,
             status: .idle,

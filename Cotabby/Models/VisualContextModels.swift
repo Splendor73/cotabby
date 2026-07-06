@@ -73,9 +73,12 @@ nonisolated struct VisualContextExcerpt: Equatable, Sendable {
 /// focused input session itself, not to any one individual completion result.
 nonisolated struct FocusedInputAugmentationSession: Equatable, Sendable {
     let sessionID: UUID
+    /// The owning app's pid — the recycling-safe half of field identity: macOS recycles
+    /// CFHash-based element tokens, but never across live processes.
+    let processIdentifier: Int32
     let elementIdentifier: String
-    /// Mirrors the monotonic counter from `FocusedInputSnapshot`. The coordinator compares this
-    /// alongside `elementIdentifier` to avoid CFHash-recycling false positives.
+    /// Mirrors the monotonic counter from `FocusedInputSnapshot`. Retained for logging; field
+    /// identity deliberately ignores it — Chromium flaps bump it while the field stays put.
     let focusChangeSequence: UInt64
     var status: VisualContextStatus
     var excerpt: VisualContextExcerpt?

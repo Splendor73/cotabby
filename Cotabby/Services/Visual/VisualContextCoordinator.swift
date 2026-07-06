@@ -51,18 +51,27 @@ final class VisualContextCoordinator {
         // Coalesce repeated calls for the same field (active or already pending) so a flapping focus
         // can't restart the pipeline. The decision is pure so the invariants stay unit-testable.
         let incoming = VisualContextFieldIdentity(
+            processIdentifier: snapshotContext.processIdentifier,
             elementIdentifier: snapshotContext.elementIdentifier,
             focusChangeSequence: snapshotContext.focusChangeSequence
         )
         let decision = VisualContextStartCoalescer.decide(
             incoming: incoming,
             active: activeAugmentationSession.map {
-                VisualContextFieldIdentity(elementIdentifier: $0.elementIdentifier, focusChangeSequence: $0.focusChangeSequence)
+                VisualContextFieldIdentity(
+                    processIdentifier: $0.processIdentifier,
+                    elementIdentifier: $0.elementIdentifier,
+                    focusChangeSequence: $0.focusChangeSequence
+                )
             },
             activeIsBlockedOnScreenRecording: activeIsBlockedOnScreenRecording,
             hasScreenRecordingPermission: screenRecordingPermissionProvider(),
             pending: pendingStartContext.map {
-                VisualContextFieldIdentity(elementIdentifier: $0.elementIdentifier, focusChangeSequence: $0.focusChangeSequence)
+                VisualContextFieldIdentity(
+                    processIdentifier: $0.processIdentifier,
+                    elementIdentifier: $0.elementIdentifier,
+                    focusChangeSequence: $0.focusChangeSequence
+                )
             }
         )
 
@@ -118,6 +127,7 @@ final class VisualContextCoordinator {
             : .unavailable(Self.permissionMissingReason)
         let session = FocusedInputAugmentationSession(
             sessionID: UUID(),
+            processIdentifier: snapshotContext.processIdentifier,
             elementIdentifier: snapshotContext.elementIdentifier,
             focusChangeSequence: snapshotContext.focusChangeSequence,
             status: initialStatus,
@@ -187,11 +197,15 @@ final class VisualContextCoordinator {
     }
 
     /// Returns the ready visual-context excerpt for the provided focused input, if the current
-    /// visual-context session still belongs to that same field.
+    /// visual-context session still belongs to that same field. Matching uses the same
+    /// flap-tolerant identity as capture coalescing (process + element, sequence ignored):
+    /// requiring an exact `focusChangeSequence` made every Chromium focus flap silently drop the
+    /// excerpt from the prompt, rewriting the stable head and wiping llama KV reuse even when no
+    /// re-capture ran.
     func excerpt(for context: FocusedInputContext) -> String? {
         guard let activeAugmentationSession,
+            activeAugmentationSession.processIdentifier == context.processIdentifier,
             activeAugmentationSession.elementIdentifier == context.elementIdentifier,
-            activeAugmentationSession.focusChangeSequence == context.focusChangeSequence,
             activeAugmentationSession.status == .ready
         else {
             return nil

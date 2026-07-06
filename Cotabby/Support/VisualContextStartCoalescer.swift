@@ -1,11 +1,22 @@
 import Foundation
 
-/// A focused field's identity for visual-context coalescing: the AX element plus the monotonic
-/// focus-change counter the tracker assigns. `elementIdentifier` alone is unreliable (macOS recycles
-/// `CFHash` values across unrelated elements), so both are compared together.
+/// A focused field's identity for visual-context coalescing: the owning process, the AX element,
+/// and the monotonic focus-change counter the tracker assigns.
 nonisolated struct VisualContextFieldIdentity: Equatable {
+    let processIdentifier: Int32
     let elementIdentifier: String
     let focusChangeSequence: UInt64
+
+    /// Field identity for capture decisions: process + element, deliberately ignoring
+    /// `focusChangeSequence`. Chromium/Electron flaps re-acquire the same element under a bumped
+    /// sequence; treating that as a new field re-ran screenshot+OCR per flap and rewrote the
+    /// stable prompt head each time, collapsing llama KV reuse to 8 of 289 decodes (measured
+    /// 2026-07-05). The pid guards the CFHash-recycling risk the sequence used to cover: recycled
+    /// element tokens never collide across live processes.
+    func sameField(as other: VisualContextFieldIdentity) -> Bool {
+        processIdentifier == other.processIdentifier
+            && elementIdentifier == other.elementIdentifier
+    }
 }
 
 /// What `VisualContextCoordinator.startSessionIfNeeded` should do for an incoming focus.
@@ -33,14 +44,14 @@ enum VisualContextStartCoalescer {
         hasScreenRecordingPermission: Bool,
         pending: VisualContextFieldIdentity?
     ) -> VisualContextStartDecision {
-        if active == incoming {
+        if let active, active.sameField(as: incoming) {
             if activeIsBlockedOnScreenRecording, hasScreenRecordingPermission {
                 return .recoverPermissionThenStart
             }
             return .ignore
         }
 
-        if pending == incoming {
+        if let pending, pending.sameField(as: incoming) {
             return .ignore
         }
 
