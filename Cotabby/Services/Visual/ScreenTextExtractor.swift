@@ -127,20 +127,24 @@ struct ScreenTextExtractor: ScreenTextExtracting {
                     // Keep each line's confidence (from its top candidate) so the hygiene pass can drop
                     // the recognizer's weakest guesses; the joined `text` below is for logging and the
                     // window-title fallback only.
-                    let recognizedLines: [OCRTextHygiene.OCRLine] = observations
-                        .sorted {
-                            if Swift.abs($0.boundingBox.minY - $1.boundingBox.minY) > 0.02 {
-                                return $0.boundingBox.minY > $1.boundingBox.minY
-                            }
-
-                            return $0.boundingBox.minX < $1.boundingBox.minX
-                        }
-                        .compactMap { observation -> OCRTextHygiene.OCRLine? in
+                    // Column-aware reading order instead of a flat by-row sort: at equal heights
+                    // a sidebar label and a content line used to get stitched into one sentence,
+                    // feeding the prompt word salad. The dominant column (most text) IS the main
+                    // content; chrome columns are dropped before hygiene ever sees them.
+                    let layoutItems: [ScreenTextColumnLayout.Item] = observations
+                        .compactMap { observation -> ScreenTextColumnLayout.Item? in
                             guard let candidate = observation.topCandidates(1).first else { return nil }
                             let trimmed = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
                             guard !trimmed.isEmpty else { return nil }
-                            return OCRTextHygiene.OCRLine(text: trimmed, confidence: candidate.confidence)
+                            return ScreenTextColumnLayout.Item(
+                                text: trimmed,
+                                box: observation.boundingBox,
+                                confidence: candidate.confidence
+                            )
                         }
+                    let recognizedLines: [OCRTextHygiene.OCRLine] = ScreenTextColumnLayout
+                        .dominantColumn(layoutItems)
+                        .map { OCRTextHygiene.OCRLine(text: $0.text, confidence: $0.confidence) }
 
                     let joinedText = recognizedLines.map(\.text).joined(separator: "\n")
                     let cappedText = String(joinedText.prefix(maxRecognizedCharacters))
