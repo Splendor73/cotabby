@@ -243,7 +243,13 @@ struct LlamaRuntimeConfiguration: Equatable, Sendable {
             "gemma-4-E4B.i1-Q4_K_M.gguf"
         ],
         contextWindowTokens: 2048,
-        batchSize: 512,
+        // The prefill batch is also the cancellation granularity: the engine abort can only land
+        // between chunks, so a 512-token batch made a whole ~200-token autocomplete prompt one
+        // uninterruptible gulp (~250ms of dead occupancy per superseded generation). 128 keeps
+        // prefill throughput within noise at these prompt sizes while quartering the abort
+        // blind spot — measured as the residual latency-tail contributor after the queued-cancel
+        // entry guard landed (docs/bench/2026-07-04-model-decision.md, latency-tail round).
+        batchSize: 128,
         gpuLayerCount: -1
     )
 }
