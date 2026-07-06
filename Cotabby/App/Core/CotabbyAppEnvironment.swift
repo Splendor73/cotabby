@@ -107,7 +107,14 @@ final class CotabbyAppEnvironment {
             ) {
                 return false
             }
-            if TerminalAppDetector.isTerminal(bundleIdentifier: snapshot.bundleIdentifier) { return false }
+            // Standalone terminal apps were dropped unconditionally here, which silently
+            // overrode the terminals setting: keystrokes never reached the pipeline, so the
+            // availability evaluator's own terminal gate downstream never even got to decide.
+            // One user-facing switch now governs both gates.
+            if TerminalAppDetector.isTerminal(bundleIdentifier: snapshot.bundleIdentifier),
+               !suggestionSettings.suggestInIntegratedTerminals {
+                return false
+            }
             if let bundleID = snapshot.bundleIdentifier,
                suggestionSettings.isApplicationDisabled(bundleIdentifier: bundleID) {
                 return false
