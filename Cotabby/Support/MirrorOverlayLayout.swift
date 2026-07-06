@@ -126,6 +126,19 @@ struct MirrorOverlayLayout: Equatable {
 
         let minY = visibleFrame.minY + Metrics.screenMargin
         let maxY = visibleFrame.maxY - Metrics.screenMargin - cardHeight
+        // Bottom-of-screen anchors (chat composers) used to be handled by the clamp alone, which
+        // slid the card UP over the very line being typed. Flip above the anchor instead whenever
+        // the below position would need that upward clamp and the flipped position fits.
+        // A flip is only meaningful relative to a real anchor; with degenerate geometry (empty
+        // caret rect, no input frame) "above" is as arbitrary as "below", so keep the margin pin.
+        let hasUsableAnchor = !geometry.caretRect.isEmpty
+            || (geometry.inputFrameRect?.standardized).map { !$0.isEmpty } ?? false
+        if originY < minY, hasUsableAnchor {
+            let flippedOriginY = computeFlippedOriginY(geometry: geometry, reason: reason)
+            if flippedOriginY >= minY, flippedOriginY <= maxY {
+                originY = flippedOriginY
+            }
+        }
         if maxY >= minY {
             originY = min(max(originY, minY), maxY)
         } else {
@@ -201,6 +214,42 @@ struct MirrorOverlayLayout: Equatable {
                 return inputFrame.minY - Metrics.anchorGap
             }
             return geometry.caretRect.minY - Metrics.caretFallbackVerticalOffset
+        }
+    }
+
+    /// The card's origin Y when flipped ABOVE the anchor (used only when there is no room below).
+    /// Mirrors `computeAnchorTopY`'s per-reason anchor choice on the opposite edge: the same
+    /// rect the below-placement trusts is the one the flip must clear, with the same slack rules
+    /// (tight gap for trusted geometry, the one-line offset where the caret baseline is an
+    /// estimate).
+    private static func computeFlippedOriginY(
+        geometry: SuggestionOverlayGeometry,
+        reason: CompletionRenderMode.MirrorReason
+    ) -> CGFloat {
+        switch reason {
+        case .caretGeometryEstimated:
+            if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
+                return inputFrame.maxY + Metrics.anchorGap
+            }
+            return geometry.caretRect.maxY + Metrics.caretFallbackVerticalOffset
+
+        case .caretLayoutEstimated:
+            if !geometry.caretRect.isEmpty {
+                return geometry.caretRect.maxY + Metrics.caretFallbackVerticalOffset
+            }
+            if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
+                return inputFrame.maxY + Metrics.anchorGap
+            }
+            return geometry.caretRect.maxY + Metrics.caretFallbackVerticalOffset
+
+        case .userPreference, .perAppOverride, .caretMidLine:
+            if !geometry.caretRect.isEmpty {
+                return geometry.caretRect.maxY + Metrics.anchorGap
+            }
+            if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
+                return inputFrame.maxY + Metrics.anchorGap
+            }
+            return geometry.caretRect.maxY + Metrics.caretFallbackVerticalOffset
         }
     }
 

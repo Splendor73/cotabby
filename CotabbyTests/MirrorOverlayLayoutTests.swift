@@ -418,4 +418,79 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             "Reserving room for the keycap should widen the card"
         )
     }
+
+    // MARK: - Flip above when no room below
+
+    /// Chat composers sit at the bottom of the screen (claude.ai in Chrome). The old bottom clamp
+    /// slid the card UP over the line being typed; with no room below, the card must flip above
+    /// the caret instead.
+    func test_make_flipsAboveCaretWhenNoRoomBelow() {
+        let caret = CGRect(x: 720, y: 30, width: 2, height: 18)
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: caret,
+            inputFrameRect: CGRect(x: 400, y: 20, width: 640, height: 40)
+        )
+
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "tomorrow afternoon",
+            geometry: geometry,
+            visibleFrame: screen,
+            showsAcceptanceHint: true,
+            reason: .caretMidLine
+        )
+
+        XCTAssertGreaterThanOrEqual(
+            layout.panelFrame.minY,
+            caret.maxY,
+            "With no room below, the card must sit above the caret, never over the typed line"
+        )
+    }
+
+    /// Same flip when the anchor is the input field rect (untrusted caret geometry).
+    func test_make_flipsAboveInputFrameWhenNoRoomBelow() {
+        let inputFrame = CGRect(x: 400, y: 10, width: 640, height: 30)
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 720, y: 15, width: 2, height: 18),
+            inputFrameRect: inputFrame
+        )
+
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "tomorrow afternoon",
+            geometry: geometry,
+            visibleFrame: screen,
+            showsAcceptanceHint: true,
+            reason: .caretGeometryEstimated
+        )
+
+        XCTAssertGreaterThanOrEqual(
+            layout.panelFrame.minY,
+            inputFrame.maxY,
+            "With no room below, the card must sit above the input field"
+        )
+    }
+
+    /// Degenerate screens where the card fits neither below nor above keep the old clamp rather
+    /// than jumping off-screen.
+    func test_make_keepsBottomClampWhenNoRoomAboveEither() {
+        let shortScreen = CGRect(x: 0, y: 0, width: 800, height: 50)
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 400, y: 30, width: 2, height: 18),
+            inputFrameRect: nil
+        )
+
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "hello",
+            geometry: geometry,
+            visibleFrame: shortScreen,
+            showsAcceptanceHint: false,
+            reason: .caretMidLine
+        )
+
+        XCTAssertEqual(
+            layout.panelFrame.minY,
+            shortScreen.minY + 12,
+            accuracy: 1,
+            "No room anywhere: keep the clamped position instead of going off-screen"
+        )
+    }
 }
