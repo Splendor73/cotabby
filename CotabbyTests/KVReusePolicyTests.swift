@@ -63,7 +63,7 @@ final class KVReusePolicyTests: XCTestCase {
     func test_denseModel_trimsSampledTokensAway() {
         XCTAssertEqual(
             KVReusePolicy.postGenerationAction(
-                modelRejectsPartialTrims: false, hasSnapshotForCurrentPrompt: false, sampledTokenCount: 5
+                modelRejectsPartialTrims: false, hasSnapshotForCurrentPrompt: false
             ),
             .trim
         )
@@ -72,7 +72,7 @@ final class KVReusePolicyTests: XCTestCase {
     func test_hybridWithSnapshot_restoresInsteadOfTrimming() {
         XCTAssertEqual(
             KVReusePolicy.postGenerationAction(
-                modelRejectsPartialTrims: true, hasSnapshotForCurrentPrompt: true, sampledTokenCount: 5
+                modelRejectsPartialTrims: true, hasSnapshotForCurrentPrompt: true
             ),
             .restoreSnapshot
         )
@@ -83,32 +83,9 @@ final class KVReusePolicyTests: XCTestCase {
         // so the probe must still run (its failure is what turns the snapshot path on).
         XCTAssertEqual(
             KVReusePolicy.postGenerationAction(
-                modelRejectsPartialTrims: true, hasSnapshotForCurrentPrompt: false, sampledTokenCount: 5
+                modelRejectsPartialTrims: true, hasSnapshotForCurrentPrompt: false
             ),
             .trim
-        )
-    }
-
-    /// A generation that sampled nothing (cancelled while queued/prefilling, or an immediate
-    /// end-of-text) leaves the cache ALREADY in prompt-only state. Restoring an older snapshot
-    /// here is a large memcpy holding the runtime lock — measured ~300ms per cancelled
-    /// generation — and it actively destroys the freshly decoded prompt, which is a pure prefix
-    /// of the NEXT keystroke's request. Zero sampled tokens must mean: touch nothing.
-    func test_zeroSampledTokens_keepsThePromptOnlyCacheUntouched_hybrid() {
-        XCTAssertEqual(
-            KVReusePolicy.postGenerationAction(
-                modelRejectsPartialTrims: true, hasSnapshotForCurrentPrompt: true, sampledTokenCount: 0
-            ),
-            .keepPromptOnly
-        )
-    }
-
-    func test_zeroSampledTokens_keepsThePromptOnlyCacheUntouched_dense() {
-        XCTAssertEqual(
-            KVReusePolicy.postGenerationAction(
-                modelRejectsPartialTrims: false, hasSnapshotForCurrentPrompt: false, sampledTokenCount: 0
-            ),
-            .keepPromptOnly
         )
     }
 

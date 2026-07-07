@@ -32,11 +32,6 @@ enum KVReusePolicy {
         case trim
         /// Put the captured prompt-only state back; never trims, so it works on hybrid caches.
         case restoreSnapshot
-        /// Nothing was sampled, so the cache already IS prompt-only: touch nothing. Restoring an
-        /// older snapshot here is a large memcpy holding the runtime lock (~300ms measured per
-        /// cancelled generation), and it destroys the freshly decoded prompt — a pure prefix of
-        /// the next keystroke's request, i.e. a free reuse hit.
-        case keepPromptOnly
     }
 
     /// Decision for an arriving prompt that shares `reusableTokenCount` tokens with the cache's
@@ -60,12 +55,8 @@ enum KVReusePolicy {
     /// path on for this model.
     static func postGenerationAction(
         modelRejectsPartialTrims: Bool,
-        hasSnapshotForCurrentPrompt: Bool,
-        sampledTokenCount: Int
+        hasSnapshotForCurrentPrompt: Bool
     ) -> PostGenerationAction {
-        if sampledTokenCount == 0 {
-            return .keepPromptOnly
-        }
         if modelRejectsPartialTrims, hasSnapshotForCurrentPrompt {
             return .restoreSnapshot
         }
