@@ -388,12 +388,10 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     private func setAbortTarget(_ sequenceID: Int32) {
         abortTargetLock.lock()
         abortTargetSequenceID = sequenceID
-        // New tenure: the record is per-tenure, never per-slot. Slot numbers recycle, and a
-        // sticky record made every future sequence on a once-aborted slot inherit destruction —
-        // measured as Chrome paints collapsing to 5/100 (loop round 7). Any sequence that
-        // SURVIVED into this tenure was provably unflagged during its previous one, because a
-        // flagged tenure always ends in destroySequence.
-        abortFiredSequenceID = -1
+        // New tenure for this sequence slot: any recorded abort belongs to a previous tenure.
+        if abortFiredSequenceID != sequenceID {
+            abortFiredSequenceID = -1
+        }
         abortTargetLock.unlock()
     }
 
