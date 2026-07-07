@@ -445,19 +445,11 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// `engineCancelled` reports that the native abort flag fired; the sequence must then be
     /// discarded because the flag is set-once for a sequence's lifetime. `onPartialRawText`
     /// receives the cumulative raw completion after each sampled token, on the calling thread.
-    private struct SampledDecode {
-        let output: LlamaGenerationOutput
-        /// The native abort flag fired; the sequence is set-once poisoned and must be discarded.
-        let engineCancelled: Bool
-        /// Drives the post-generation cache action: zero means the cache is still prompt-only.
-        let sampledTokenCount: Int
-    }
-
     private func runEngineSampledDecode(
         sequenceID: Int32,
         options: LlamaGenerationOptions,
         onPartialRawText: ((String) -> Void)? = nil
-    ) -> SampledDecode {
+    ) -> (output: LlamaGenerationOutput, engineCancelled: Bool, sampledTokenCount: Int) {
         var generatedText = ""
         var tokensGenerated = 0
         var sumLogprob = 0.0
@@ -540,22 +532,14 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 averageLogprob: averageLogprob,
                 suppressedByLowConfidence: true
             )
-            return SampledDecode(
-                output: suppressed,
-                engineCancelled: engineCancelled,
-                sampledTokenCount: tokensGenerated
-            )
+            return (suppressed, engineCancelled, tokensGenerated)
         }
         let output = LlamaGenerationOutput(
             text: generatedText,
             averageLogprob: averageLogprob,
             suppressedByLowConfidence: false
         )
-        return SampledDecode(
-            output: output,
-            engineCancelled: engineCancelled,
-            sampledTokenCount: tokensGenerated
-        )
+        return (output, engineCancelled, tokensGenerated)
     }
 
     /// Low-confidence gate for the sampled decoder: drop completions the model itself was unsure
