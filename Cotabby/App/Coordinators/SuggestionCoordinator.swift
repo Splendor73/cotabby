@@ -114,6 +114,10 @@ final class SuggestionCoordinator: ObservableObject {
     /// keyboard quiet against this so spell-checker corrections stop flickering mid-burst.
     var lastTextMutationAt: Date?
 
+    /// The content signature that already received its one idle-retry regeneration after an
+    /// empty result (`IdleRetryPolicy`), so persistent silence never loops.
+    var lastIdleRetrySignature: String?
+
     /// Monotonic cancellation token for the "wait until the host publishes typed text to AX" loop.
     ///
     /// Keystrokes can arrive faster than Chromium publishes contenteditable updates. Without this

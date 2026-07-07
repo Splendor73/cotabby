@@ -713,7 +713,7 @@ extension SuggestionCoordinator {
 
     /// Empty-result bookkeeping for `apply`, extracted to keep that function inside the
     /// complexity budget as its guard chain grew.
-    private func discardEmptyResult(_ result: SuggestionResult, workID: UInt64) {
+    private func discardEmptyResult(_ result: SuggestionResult, workID: UInt64, contentSignature: String) {
         clearSuggestion()
         hideOverlay(reason: "Overlay hidden because the model returned an empty continuation.")
         state = .idle
@@ -729,6 +729,28 @@ extension SuggestionCoordinator {
             message: "Model returned an empty or whitespace-only continuation after normalization.",
             rawOutput: result.rawText,
             normalizedOutput: result.text
+        )
+
+        // The fixed sampler seed makes this silence reproducible at the same caret, so without
+        // intervention a pause the model answered with nothing stays blank forever. Arm the
+        // dismissal seed walk and schedule ONE regeneration; the replaceable debounced work
+        // means any newer keystroke silently cancels it, and the per-signature cap keeps
+        // genuinely finished text from regenerating in a loop at every pause.
+        guard IdleRetryPolicy.shouldRetry(
+            emptySignature: contentSignature,
+            lastRetriedSignature: lastIdleRetrySignature
+        ) else {
+            return
+        }
+        lastIdleRetrySignature = contentSignature
+        retrySeedTracker.noteDismissal(contentSignature: contentSignature)
+        let retryWorkID = workController.replaceDebouncedWork(delayMilliseconds: 300) { [weak self] newWorkID in
+            await self?.generateFromCurrentFocus(workID: newWorkID)
+        }
+        logStage(
+            "idle-retry",
+            workID: retryWorkID,
+            message: "Empty result at an idle caret; regenerating once on a walked seed."
         )
     }
 
@@ -807,7 +829,7 @@ extension SuggestionCoordinator {
         latestRawModelOutput = SuggestionDebugLogger.debugPreview(result.rawText)
 
         guard !result.text.isEmpty else {
-            discardEmptyResult(result, workID: workID)
+            discardEmptyResult(result, workID: workID, contentSignature: liveContext.contentSignature)
             return
         }
 
