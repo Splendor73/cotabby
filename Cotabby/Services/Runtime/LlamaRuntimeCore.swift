@@ -210,21 +210,35 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         // inside the policy — their trim is free.
         captureAutocompleteSnapshotIfWorthwhile(promptTokenCount: preparation.promptTokens.count)
 
+        // Written by the decode below before the defer runs; the sentinel keeps the defer on the
+        // conservative restore/trim path if the decode never executed (an earlier throw).
+        var sampledTokenCount = Int.max
         defer {
             // Return the cache to prompt-only state for the next request. Dense models trim the
             // sampled tokens away; trim-rejecting models restore the snapshot captured above.
-            // The trim still runs as a probe while no snapshot exists — its rejection is what
-            // teaches us the model needs the snapshot path (and the poisoned cache self-heals:
-            // the decoded-count sentinel forces the next request to build fresh). Skipped when
-            // the sequence was already destroyed (cancellation): a trim on a dead sequence
+            // A decode that sampled NOTHING (cancelled while queued/prefilling, immediate
+            // end-of-text) left the cache already prompt-only: keep it — the snapshot restore is
+            // a large memcpy holding this lock (~300ms measured per cancelled generation), and
+            // it would overwrite a freshly decoded prompt that is a pure prefix of the next
+            // keystroke's request. The trim still runs as a probe while no snapshot exists — its
+            // rejection is what teaches us the model needs the snapshot path. Skipped entirely
+            // when the sequence was already destroyed (cancellation): a trim on a dead sequence
             // fails for lifecycle reasons and must not masquerade as a cache-family rejection.
             if autocompleteSequenceID == sequenceID {
                 let action = KVReusePolicy.postGenerationAction(
                     modelRejectsPartialTrims: modelRejectsPartialTrims,
                     hasSnapshotForCurrentPrompt:
-                        autocompleteSnapshot?.promptTokenCount == preparation.promptTokens.count
+                        autocompleteSnapshot?.promptTokenCount == preparation.promptTokens.count,
+                    sampledTokenCount: sampledTokenCount
                 )
                 switch action {
+                case .keepPromptOnly:
+                    autocompleteDecodedTokenCount = preparation.promptTokens.count
+                    // The retained snapshot belongs to an older prompt; the bookkeeping above
+                    // now describes the live cache, and the next generation re-captures.
+                    if autocompleteSnapshot?.promptTokenCount != preparation.promptTokens.count {
+                        autocompleteSnapshot = nil
+                    }
                 case .restoreSnapshot:
                     if !restoreAutocompleteSnapshot() {
                         engine.destroySequence(autocompleteSequenceID)
@@ -253,6 +267,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             options: options,
             onPartialRawText: onPartialRawText
         )
+        sampledTokenCount = decode.sampledTokenCount
         if decode.engineCancelled {
             // The engine's per-sequence abort flag is set-once; an aborted sequence would refuse
             // every future decode, so drop it and let the next request build fresh.
@@ -434,7 +449,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         sequenceID: Int32,
         options: LlamaGenerationOptions,
         onPartialRawText: ((String) -> Void)? = nil
-    ) -> (output: LlamaGenerationOutput, engineCancelled: Bool) {
+    ) -> (output: LlamaGenerationOutput, engineCancelled: Bool, sampledTokenCount: Int) {
         var generatedText = ""
         var tokensGenerated = 0
         var sumLogprob = 0.0
@@ -517,14 +532,14 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 averageLogprob: averageLogprob,
                 suppressedByLowConfidence: true
             )
-            return (suppressed, engineCancelled)
+            return (suppressed, engineCancelled, tokensGenerated)
         }
         let output = LlamaGenerationOutput(
             text: generatedText,
             averageLogprob: averageLogprob,
             suppressedByLowConfidence: false
         )
-        return (output, engineCancelled)
+        return (output, engineCancelled, tokensGenerated)
     }
 
     /// Low-confidence gate for the sampled decoder: drop completions the model itself was unsure
