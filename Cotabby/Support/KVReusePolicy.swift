@@ -32,15 +32,6 @@ enum KVReusePolicy {
         case trim
         /// Put the captured prompt-only state back; never trims, so it works on hybrid caches.
         case restoreSnapshot
-        /// The engine abort ever touched this sequence. Its cancel flag is set-once: every future
-        /// decode on it returns a fake cancellation (the mechanism behind the reverted 7x paint
-        /// regression, 91ea45b). The sequence must die, whatever else is true.
-        case destroySequence
-        /// Cancelled after prefill but before the first sample, with no abort fired: the cache is
-        /// exactly prompt-only and the sampler history untouched. Keep it — the next keystroke's
-        /// prompt extends this one on base-renderer models, so this is a free reuse hit, and the
-        /// ~300ms restore memcpy the old path paid here bought nothing.
-        case keepLiveState
     }
 
     /// Decision for an arriving prompt that shares `reusableTokenCount` tokens with the cache's
@@ -64,16 +55,8 @@ enum KVReusePolicy {
     /// path on for this model.
     static func postGenerationAction(
         modelRejectsPartialTrims: Bool,
-        hasSnapshotForCurrentPrompt: Bool,
-        abortFlagged: Bool,
-        samplerTouched: Bool
+        hasSnapshotForCurrentPrompt: Bool
     ) -> PostGenerationAction {
-        if abortFlagged {
-            return .destroySequence
-        }
-        if !samplerTouched {
-            return .keepLiveState
-        }
         if modelRejectsPartialTrims, hasSnapshotForCurrentPrompt {
             return .restoreSnapshot
         }

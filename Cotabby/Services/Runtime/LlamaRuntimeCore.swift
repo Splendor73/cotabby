@@ -39,10 +39,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// because the abort fires while `autocompleteLock` is held by the very work being aborted.
     private let abortTargetLock = NSLock()
     private var abortTargetSequenceID: Int32 = -1
-    /// The last sequence `abortInFlightGeneration` actually fired at. The engine's cancel flag is
-    /// set-once per sequence, so cleanup must destroy that sequence rather than keep or restore
-    /// it. Guarded by `abortTargetLock`; reset when a different sequence takes the abort target.
-    private var abortFiredSequenceID: Int32 = -1
 
     /// One loud line per model load when the engine rejects partial KV trims (llama.cpp cannot
     /// drop mid-sequence ranges on hybrid/recurrent or SWA caches). Without this signal the
@@ -214,37 +210,21 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         // inside the policy — their trim is free.
         captureAutocompleteSnapshotIfWorthwhile(promptTokenCount: preparation.promptTokens.count)
 
-        // Written by the decode below before the defer runs. The conservative default (touched)
-        // keeps the restore/trim path if the decode never executed (an earlier throw).
-        var samplerTouched = true
         defer {
             // Return the cache to prompt-only state for the next request. Dense models trim the
             // sampled tokens away; trim-rejecting models restore the snapshot captured above.
-            // Two special outcomes, per the 2026-07-07 adversarial review of the reverted
-            // 91ea45b regression: a sequence the engine abort ever touched carries a set-once
-            // cancel flag and must DIE (keeping it fake-cancels every future decode on it); a
-            // clean cancel that never reached the sampler left the cache exactly prompt-only,
-            // so keeping it live is a free reuse hit and the ~300ms restore memcpy here bought
-            // nothing. The trim still runs as a probe while no snapshot exists — its rejection
-            // is what teaches us the model needs the snapshot path. Skipped entirely when the
-            // sequence was already destroyed: a trim on a dead sequence fails for lifecycle
-            // reasons and must not masquerade as a cache-family rejection.
+            // The trim still runs as a probe while no snapshot exists — its rejection is what
+            // teaches us the model needs the snapshot path (and the poisoned cache self-heals:
+            // the decoded-count sentinel forces the next request to build fresh). Skipped when
+            // the sequence was already destroyed (cancellation): a trim on a dead sequence
+            // fails for lifecycle reasons and must not masquerade as a cache-family rejection.
             if autocompleteSequenceID == sequenceID {
                 let action = KVReusePolicy.postGenerationAction(
                     modelRejectsPartialTrims: modelRejectsPartialTrims,
                     hasSnapshotForCurrentPrompt:
-                        autocompleteSnapshot?.promptTokenCount == preparation.promptTokens.count,
-                    abortFlagged: abortFired(for: sequenceID),
-                    samplerTouched: samplerTouched
+                        autocompleteSnapshot?.promptTokenCount == preparation.promptTokens.count
                 )
                 switch action {
-                case .destroySequence:
-                    engine.destroySequence(autocompleteSequenceID)
-                    autocompleteSequenceID = -1
-                    autocompleteSnapshot = nil
-                    autocompleteDecodedTokenCount = 0
-                case .keepLiveState:
-                    autocompleteDecodedTokenCount = preparation.promptTokens.count
                 case .restoreSnapshot:
                     if !restoreAutocompleteSnapshot() {
                         engine.destroySequence(autocompleteSequenceID)
@@ -273,7 +253,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             options: options,
             onPartialRawText: onPartialRawText
         )
-        samplerTouched = decode.samplerTouched
         if decode.engineCancelled {
             // The engine's per-sequence abort flag is set-once; an aborted sequence would refuse
             // every future decode, so drop it and let the next request build fresh.
@@ -371,13 +350,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     func abortInFlightGeneration() {
         abortTargetLock.lock()
         let target = abortTargetSequenceID
-        // The engine flag is set-once for the sequence's lifetime; record which sequence it hit
-        // so the post-generation cleanup destroys it instead of ever keeping or restoring it —
-        // a kept flagged sequence fake-cancels every future decode (the reverted 91ea45b
-        // regression).
-        if target >= 0 {
-            abortFiredSequenceID = target
-        }
         abortTargetLock.unlock()
         guard target >= 0 else {
             return
@@ -388,10 +360,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     private func setAbortTarget(_ sequenceID: Int32) {
         abortTargetLock.lock()
         abortTargetSequenceID = sequenceID
-        // New tenure for this sequence slot: any recorded abort belongs to a previous tenure.
-        if abortFiredSequenceID != sequenceID {
-            abortFiredSequenceID = -1
-        }
         abortTargetLock.unlock()
     }
 
@@ -399,13 +367,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         abortTargetLock.lock()
         abortTargetSequenceID = -1
         abortTargetLock.unlock()
-    }
-
-    /// Whether `abortInFlightGeneration` ever fired at `sequenceID` during its current tenure.
-    private func abortFired(for sequenceID: Int32) -> Bool {
-        abortTargetLock.lock()
-        defer { abortTargetLock.unlock() }
-        return abortFiredSequenceID == sequenceID
     }
 
     /// Shared tokenize/truncate/log front half of `generate` and `prefill`.
@@ -469,26 +430,16 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// `engineCancelled` reports that the native abort flag fired; the sequence must then be
     /// discarded because the flag is set-once for a sequence's lifetime. `onPartialRawText`
     /// receives the cumulative raw completion after each sampled token, on the calling thread.
-    private struct SampledDecode {
-        let output: LlamaGenerationOutput
-        /// The native abort flag fired mid-decode; the sequence is set-once poisoned.
-        let engineCancelled: Bool
-        /// True once `sampleNext` ran at all — even a zero-token immediate-EOS advances the
-        /// sampler's history, so only a never-sampled sequence is safe to keep live.
-        let samplerTouched: Bool
-    }
-
     private func runEngineSampledDecode(
         sequenceID: Int32,
         options: LlamaGenerationOptions,
         onPartialRawText: ((String) -> Void)? = nil
-    ) -> SampledDecode {
+    ) -> (output: LlamaGenerationOutput, engineCancelled: Bool) {
         var generatedText = ""
         var tokensGenerated = 0
         var sumLogprob = 0.0
         var stopReason = "budget_exhausted"
         var engineCancelled = false
-        var samplerTouched = false
 
         for _ in 0 ..< options.maxPredictionTokens {
             // Cooperative cancellation: when the wrapping Task is cancelled (caller hit a new
@@ -500,7 +451,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 break
             }
 
-            samplerTouched = true
             let result = engine.sampleNext(sequenceID)
 
             if result.was_cancelled {
@@ -567,22 +517,14 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 averageLogprob: averageLogprob,
                 suppressedByLowConfidence: true
             )
-            return SampledDecode(
-                output: suppressed,
-                engineCancelled: engineCancelled,
-                samplerTouched: samplerTouched
-            )
+            return (suppressed, engineCancelled)
         }
         let output = LlamaGenerationOutput(
             text: generatedText,
             averageLogprob: averageLogprob,
             suppressedByLowConfidence: false
         )
-        return SampledDecode(
-            output: output,
-            engineCancelled: engineCancelled,
-            samplerTouched: samplerTouched
-        )
+        return (output, engineCancelled)
     }
 
     /// Low-confidence gate for the sampled decoder: drop completions the model itself was unsure
