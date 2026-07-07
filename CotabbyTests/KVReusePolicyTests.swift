@@ -63,7 +63,8 @@ final class KVReusePolicyTests: XCTestCase {
     func test_denseModel_trimsSampledTokensAway() {
         XCTAssertEqual(
             KVReusePolicy.postGenerationAction(
-                modelRejectsPartialTrims: false, hasSnapshotForCurrentPrompt: false
+                modelRejectsPartialTrims: false, hasSnapshotForCurrentPrompt: false,
+                abortFlagged: false, samplerTouched: true
             ),
             .trim
         )
@@ -72,7 +73,8 @@ final class KVReusePolicyTests: XCTestCase {
     func test_hybridWithSnapshot_restoresInsteadOfTrimming() {
         XCTAssertEqual(
             KVReusePolicy.postGenerationAction(
-                modelRejectsPartialTrims: true, hasSnapshotForCurrentPrompt: true
+                modelRejectsPartialTrims: true, hasSnapshotForCurrentPrompt: true,
+                abortFlagged: false, samplerTouched: true
             ),
             .restoreSnapshot
         )
@@ -83,9 +85,65 @@ final class KVReusePolicyTests: XCTestCase {
         // so the probe must still run (its failure is what turns the snapshot path on).
         XCTAssertEqual(
             KVReusePolicy.postGenerationAction(
-                modelRejectsPartialTrims: true, hasSnapshotForCurrentPrompt: false
+                modelRejectsPartialTrims: true, hasSnapshotForCurrentPrompt: false,
+                abortFlagged: false, samplerTouched: true
             ),
             .trim
+        )
+    }
+
+    /// The engine's per-sequence cancel flag is set-once: a sequence the abort ever touched will
+    /// fake-cancel every future decode on it. Keeping one as reusable cache was the 7x paint
+    /// regression (91ea45b, reverted) — the flagged sequence must be destroyed, regardless of
+    /// anything else.
+    func test_abortFlaggedSequence_isDestroyed_neverKept() {
+        XCTAssertEqual(
+            KVReusePolicy.postGenerationAction(
+                modelRejectsPartialTrims: true, hasSnapshotForCurrentPrompt: true,
+                abortFlagged: true, samplerTouched: false
+            ),
+            .destroySequence
+        )
+        XCTAssertEqual(
+            KVReusePolicy.postGenerationAction(
+                modelRejectsPartialTrims: false, hasSnapshotForCurrentPrompt: false,
+                abortFlagged: true, samplerTouched: true
+            ),
+            .destroySequence
+        )
+    }
+
+    /// A generation cancelled between prefill and its first sample, with no abort fired, left the
+    /// sequence clean and exactly prompt-only: keep it live. The next keystroke's prompt is a
+    /// pure extension on base-renderer models, so this is a free decodeDeltaWithoutTrim hit —
+    /// and the ~300ms restore memcpy the old path paid here bought nothing.
+    func test_cleanUnflaggedUnsampledCancel_keepsLiveState() {
+        XCTAssertEqual(
+            KVReusePolicy.postGenerationAction(
+                modelRejectsPartialTrims: true, hasSnapshotForCurrentPrompt: true,
+                abortFlagged: false, samplerTouched: false
+            ),
+            .keepLiveState
+        )
+        XCTAssertEqual(
+            KVReusePolicy.postGenerationAction(
+                modelRejectsPartialTrims: false, hasSnapshotForCurrentPrompt: false,
+                abortFlagged: false, samplerTouched: false
+            ),
+            .keepLiveState
+        )
+    }
+
+    /// An immediate end-of-text ran the sampler once (the seed advanced sampler history even
+    /// with zero committed tokens): that sequence is TOUCHED and must take the normal
+    /// restore/trim path, not the keep-live shortcut.
+    func test_immediateEOS_countsAsTouched() {
+        XCTAssertEqual(
+            KVReusePolicy.postGenerationAction(
+                modelRejectsPartialTrims: true, hasSnapshotForCurrentPrompt: true,
+                abortFlagged: false, samplerTouched: true
+            ),
+            .restoreSnapshot
         )
     }
 
