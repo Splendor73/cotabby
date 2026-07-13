@@ -229,7 +229,9 @@ struct LlamaRuntimeConfiguration: Equatable, Sendable {
     let runtimeDirectoryPath: String?
     let preferredModelNames: [String]
     let contextWindowTokens: Int32
-    let batchSize: Int32
+    /// `var` for exactly one writer: the dev-only `cotabbyBatchSizeOverride` A/B knob applied in
+    /// `LlamaRuntimeManager.prepare` — production code treats this as immutable.
+    var batchSize: Int32
     let gpuLayerCount: Int32
 
     /// Order matters here: the locator picks the first GGUF that exists.

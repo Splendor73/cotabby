@@ -276,9 +276,17 @@ final class LlamaRuntimeManager: ObservableObject {
         diagnostics.modelFilePath = resolvedRuntime.modelFileURL.path
         // Per-model overrides (context window, later sampling) apply at load time so a profiled
         // model gets its own KV capacity while every other model keeps the global configuration.
-        let effectiveConfiguration = RuntimeModelCatalog.effectiveConfiguration(
+        var effectiveConfiguration = RuntimeModelCatalog.effectiveConfiguration(
             configuration, forModelFilename: requestedModelFilename
         )
+        // Dev-only A/B knob (same channel as cotabbyConfidenceFloorOverride): the prefill batch
+        // is both a throughput and an abort-granularity parameter, and the eval harness needs to
+        // measure the trade on identical prompts instead of trusting anyone's "within noise".
+        let batchOverride = UserDefaults.standard.integer(forKey: "cotabbyBatchSizeOverride")
+        if batchOverride > 0 {
+            effectiveConfiguration.batchSize = Int32(batchOverride)
+            CotabbyLogger.runtime.info("Batch size override active: \(batchOverride)")
+        }
         let startupTask = Task.detached { [core] in
             try core.prepare(
                 resolvedRuntime: resolvedRuntime,
