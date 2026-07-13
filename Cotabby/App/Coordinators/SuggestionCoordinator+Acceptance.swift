@@ -564,7 +564,8 @@ extension SuggestionCoordinator {
 
     func invalidateActiveSuggestion(
         reason: String,
-        clearDiagnostics: Bool = true
+        clearDiagnostics: Bool = true,
+        allowCardLinger: Bool = false
     ) {
         CotabbyLogger.suggestion.debug("Invalidating active suggestion: \(reason)")
         // The dying session is exactly what a backspace-rollback wants restored a moment later;
@@ -578,7 +579,26 @@ extension SuggestionCoordinator {
         }
         cancelPredictionWork()
         clearSuggestion(clearDiagnostics: clearDiagnostics)
-        hideOverlay(reason: reason)
+        // Fast typing used to blank the popup card on every divergent keystroke, leaving nothing
+        // on screen at speed. Lingering keeps the (slightly stale) card visible until the fresh
+        // suggestion replaces it — the continuity the user reads as "it keeps up". Card-only: a
+        // stale floating phrase lags gracefully, while stale inline ghost would misalign with
+        // the typed characters. Safe by construction: the session was cleared above, which also
+        // removes the accept tap, so the lingering text can never be inserted. The next
+        // presentOverlay swaps the content; the timeout covers the no-replacement case; every
+        // other hide path still hides immediately.
+        if allowCardLinger, settingsSnapshot.mirrorPreference == .alwaysMirror, overlayState.isVisible {
+            cardLingerToken &+= 1
+            let token = cardLingerToken
+            CotabbyLogger.suggestion.debug("Card lingering while the replacement generates.")
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                guard let self, self.cardLingerToken == token else { return }
+                self.hideOverlay(reason: "Overlay hidden because the lingering card was not replaced in time.")
+            }
+        } else {
+            hideOverlay(reason: reason)
+        }
         state = .idle
     }
 
@@ -740,6 +760,8 @@ extension SuggestionCoordinator {
         isCorrection: Bool = false,
         pendingInsertion: String = ""
     ) {
+        // Fresh content replaces any lingering card; retire its pending expiry.
+        cardLingerToken &+= 1
         let anchor = Self.layoutRepairedAnchor(
             for: context,
             fallbackRect: caretRect,
@@ -986,6 +1008,8 @@ extension SuggestionCoordinator {
     }
 
     func hideOverlay(reason: String) {
+        // Any explicit hide supersedes a pending card-linger timeout.
+        cardLingerToken &+= 1
         latestOverlayMessage = overlayPresenter.hide(reason: reason)
     }
 

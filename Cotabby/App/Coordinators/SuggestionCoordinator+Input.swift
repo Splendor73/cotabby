@@ -393,7 +393,10 @@ extension SuggestionCoordinator {
 
             invalidateActiveSuggestion(
                 reason: SuggestionSessionReconciler.overlayHideReason(for: event),
-                clearDiagnostics: false
+                clearDiagnostics: false,
+                // Divergent typing at speed: keep the popup card visible until the replacement
+                // suggestion lands instead of blanking on every keystroke.
+                allowCardLinger: true
             )
             if event.shouldSchedulePrediction {
                 schedulePredictionAfterHostPublishDelay()

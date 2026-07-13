@@ -118,6 +118,10 @@ final class SuggestionCoordinator: ObservableObject {
     /// empty result (`IdleRetryPolicy`), so persistent silence never loops.
     var lastIdleRetrySignature: String?
 
+    /// Monotonic token guarding the card-linger timeout: a fresh paint or any explicit hide
+    /// bumps it, so a pending linger-expiry can never hide newer content.
+    var cardLingerToken: UInt64 = 0
+
     /// Monotonic cancellation token for the "wait until the host publishes typed text to AX" loop.
     ///
     /// Keystrokes can arrive faster than Chromium publishes contenteditable updates. Without this
