@@ -304,6 +304,12 @@ final class CotabbyAppEnvironment {
         self.keyboardInputSourceMonitor = keyboardInputSourceMonitor
         self.clipboardContextProvider = clipboardContextProvider
         self.suggestionCoordinator = suggestionCoordinator
+        // Staleness refresh may only run while the keyboard is quiet; the coordinator owns the
+        // tap-time keystroke clock, so the visual-context service borrows it through a closure
+        // instead of the two objects holding each other.
+        visualContextCoordinator.idleSecondsProvider = { [weak suggestionCoordinator] in
+            suggestionCoordinator?.lastTextMutationAt.map { -$0.timeIntervalSinceNow }
+        }
         self.emojiPickerController = emojiPickerController
         self.macroController = macroController
         self.inlineCommandCoordinator = inlineCommandCoordinator

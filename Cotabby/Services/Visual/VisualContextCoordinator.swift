@@ -18,8 +18,18 @@ final class VisualContextCoordinator {
     private(set) var status: VisualContextStatus = .idle
     private(set) var latestExcerpt: String?
 
+    /// Seconds since the user's last text-mutating keystroke, injected by the app environment.
+    /// Nil (never wired, or no keystroke yet) disables staleness refresh entirely.
+    var idleSecondsProvider: (() -> TimeInterval?)?
+
     private var activeAugmentationSession: FocusedInputAugmentationSession?
     private var visualContextTask: Task<Void, Never>?
+    /// The snapshot the active session captured, retained so a staleness refresh can re-run the
+    /// same field's capture without waiting for a focus event.
+    private var activeSessionSnapshot: FocusedInputSnapshot?
+    private var excerptReadyAt: Date?
+    private var refreshHeartbeat: Task<Void, Never>?
+    private static let refreshHeartbeatNanoseconds: UInt64 = 10_000_000_000
 
     /// Debounce state for the capture pipeline. `pendingStartContext` is the field whose start is
     /// currently waiting out the settle delay; a matching repeat call is ignored so a churning focus
@@ -135,13 +145,16 @@ final class VisualContextCoordinator {
         )
 
         activeAugmentationSession = session
+        activeSessionSnapshot = snapshotContext
         latestExcerpt = nil
+        excerptReadyAt = nil
         status = initialStatus
         publishState()
 
         guard hasPermission else {
             return
         }
+        startRefreshHeartbeatIfNeeded()
 
         visualContextTask = Task { [weak self] in
             guard let self else {
@@ -188,12 +201,51 @@ final class VisualContextCoordinator {
         visualContextTask?.cancel()
         visualContextTask = nil
         activeAugmentationSession = nil
+        activeSessionSnapshot = nil
         latestExcerpt = nil
+        excerptReadyAt = nil
 
         if resetState {
             status = .idle
             publishState()
         }
+    }
+
+    /// A slow heartbeat that re-captures the still-focused field when its ready excerpt has gone
+    /// stale and the keyboard is quiet (`ExcerptRefreshPolicy`). Chat fields live for minutes
+    /// while the conversation above them moves on, and the excerpt is the model's only view of
+    /// that conversation; the idle requirement keeps the prompt-head rewrite (and the KV rebuild
+    /// it causes) inside a pause, where the follow-up regeneration doubles as the prewarm.
+    private func startRefreshHeartbeatIfNeeded() {
+        guard refreshHeartbeat == nil else {
+            return
+        }
+        refreshHeartbeat = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: Self.refreshHeartbeatNanoseconds)
+                guard let self else { return }
+                self.refreshStaleExcerptIfSafe()
+            }
+        }
+    }
+
+    private func refreshStaleExcerptIfSafe() {
+        guard let session = activeAugmentationSession,
+              session.status == .ready,
+              let snapshot = activeSessionSnapshot,
+              let readyAt = excerptReadyAt,
+              screenRecordingPermissionProvider(),
+              ExcerptRefreshPolicy.shouldRefresh(
+                  excerptAgeSeconds: Date().timeIntervalSince(readyAt),
+                  idleSeconds: idleSecondsProvider?()
+              )
+        else {
+            return
+        }
+        CotabbyLogger.app.debug("Refreshing stale visual context during idle pause")
+        // Replacement session for the same field: silent teardown, same debounced start path.
+        cancel(resetState: false)
+        scheduleSessionStart(for: snapshot)
     }
 
     /// Returns the ready visual-context excerpt for the provided focused input, if the current
@@ -243,6 +295,7 @@ final class VisualContextCoordinator {
         activeAugmentationSession?.excerpt = excerpt
         status = .ready
         latestExcerpt = excerpt.text
+        excerptReadyAt = Date()
         CotabbyLogger.app.debug("Visual context ready: \(excerpt.text.count) chars")
         publishState()
         onInjectedContextReady?(identity)
