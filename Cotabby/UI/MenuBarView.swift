@@ -192,6 +192,20 @@ struct MenuBarView: View {
                     .pickerStyle(.menu)
                 }
 
+                // The quick control the render-mode policy docs promise: inline ghost text vs the
+                // floating popup card, switchable without opening Settings (the full picker with
+                // per-app overrides lives in the Appearance pane).
+                MenuBarPickerRow(title: "Display") {
+                    Picker("Display", selection: mirrorPreferenceBinding) {
+                        ForEach(MirrorPreference.allCases) { preference in
+                            Text(preference.displayLabel)
+                                .tag(preference)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                }
+
             }
         }
         .padding(.bottom, 12)
@@ -348,6 +362,13 @@ struct MenuBarView: View {
                     disabled: !enabled
                 )
             }
+        )
+    }
+
+    private var mirrorPreferenceBinding: Binding<MirrorPreference> {
+        Binding(
+            get: { suggestionSettings.mirrorPreference },
+            set: { suggestionSettings.setMirrorPreference($0) }
         )
     }
 
