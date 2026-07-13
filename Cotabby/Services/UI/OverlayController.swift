@@ -56,6 +56,16 @@ final class OverlayController: SuggestionOverlayControlling {
     private var inlineHostingView: NSHostingView<GhostSuggestionView>?
     private var mirrorHostingView: NSHostingView<MirrorOverlayView>?
 
+    /// The card's frozen top-left, the caret line it was pinned on, and the field it belongs to.
+    /// The card holds this origin while the user types along a line (`MirrorCardPinPolicy`) and
+    /// only re-anchors on a line change or a field switch — a stationary target rather than one
+    /// that chases the caret or re-centers as streaming grows it. Pinning the ORIGIN (not the
+    /// caret) also freezes the left edge so streamed text grows the card rightward in place.
+    /// Reset on hide.
+    private var pinnedMirrorOrigin: CGPoint?
+    private var pinnedMirrorLineMinY: CGFloat?
+    private var pinnedMirrorIdentityKey: UInt64?
+
     /// Per-focus-session floor for caret-derived font size. Caret height flickers between the real
     /// line height and the coarse field-height fallback from poll to poll; stabilizing keeps ghost
     /// text from ballooning when the fallback wins. See `GhostFontSizeStabilizer`.
@@ -153,6 +163,10 @@ final class OverlayController: SuggestionOverlayControlling {
     func hide(reason: String) {
         panel.orderOut(nil)
         state = .hidden(reason: reason)
+        // The card's pinned position belongs to one appearance; a fresh show re-anchors.
+        pinnedMirrorOrigin = nil
+        pinnedMirrorLineMinY = nil
+        pinnedMirrorIdentityKey = nil
     }
 
     /// Mirrors the system Accessibility "Reduce Motion" preference. Read live so flipping it in
@@ -373,6 +387,23 @@ final class OverlayController: SuggestionOverlayControlling {
             sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier),
             reason: reason
         )
+        // Pin the card in place per line. Re-anchor only on a field switch or a real line change;
+        // otherwise freeze the top-left so same-line typing and streamed tokens grow the card
+        // rightward instead of walking or re-centering it — a moving card can't be read at speed.
+        let fieldChanged = pinnedMirrorIdentityKey != geometry.focusedInputIdentityKey
+        let reanchor = fieldChanged || MirrorCardPinPolicy.shouldReanchor(
+            pinnedCaretMinY: pinnedMirrorLineMinY,
+            liveCaretMinY: geometry.caretRect.minY,
+            caretHeight: geometry.caretRect.height
+        )
+        var pinnedPanelFrame = layout.panelFrame
+        if reanchor {
+            pinnedMirrorOrigin = pinnedPanelFrame.origin
+            pinnedMirrorLineMinY = geometry.caretRect.minY
+            pinnedMirrorIdentityKey = geometry.focusedInputIdentityKey
+        } else if let origin = pinnedMirrorOrigin {
+            pinnedPanelFrame.origin = origin
+        }
         let customGhostColor = SuggestionTextColorCodec.color(
             fromHex: suggestionSettings.customSuggestionTextColorHex
         )
@@ -400,12 +431,11 @@ final class OverlayController: SuggestionOverlayControlling {
             panel.contentView = contentView
         }
 
-        let panelFrame = layout.panelFrame
-        guard AXHelper.rectHasFiniteComponents(panelFrame) else {
+        guard AXHelper.rectHasFiniteComponents(pinnedPanelFrame) else {
             CotabbyLogger.suggestion.warning("Skipped mirror overlay: computed a non-finite frame")
             return
         }
-        panel.setFrame(panelFrame, display: true)
+        panel.setFrame(pinnedPanelFrame, display: true)
         panel.orderFrontRegardless()
     }
 
