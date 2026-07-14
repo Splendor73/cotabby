@@ -36,6 +36,11 @@ final class LlamaSuggestionEvalTests: XCTestCase {
     /// does not forward environment variables into the test host, so UserDefaults is the channel.
     static let evalModelDefaultsKey = "cotabbyEvalModelFilename"
 
+    /// Optional per-run custom-instructions override (the Cotypist-style user writing prompt), so a
+    /// benchmark can A/B whether injecting it changes completion length/quality:
+    /// `defaults write <test-host bundle id> cotabbyEvalExtendedContext "<instructions>"`.
+    static let evalExtendedContextDefaultsKey = "cotabbyEvalExtendedContext"
+
     func test_reportEvalSuite() async throws {
         #if RUN_LLAMA_EVAL
         let manager = LlamaRuntimeManager()
@@ -122,6 +127,7 @@ final class LlamaSuggestionEvalTests: XCTestCase {
             selectedEngine: .llamaOpenSource,
             selectedWordCountPreset: .twelveToTwenty,
             isClipboardContextEnabled: false,
+            extendedContext: UserDefaults.standard.string(forKey: Self.evalExtendedContextDefaultsKey) ?? "",
             isMultiLineEnabled: evalCase.isMultiLineEnabled
         )
         let request = SuggestionRequestFactory.buildRequest(
