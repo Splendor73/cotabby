@@ -168,7 +168,8 @@ def main():
     if not args.keystrokes or not args.overlay:
         parser.error("--keystrokes and --overlay are required (or use --selftest)")
 
-    keystrokes = _load(args.keystrokes)
+    # Skip keystrokes the driver failed to send (ok:false) — they never reached the app.
+    keystrokes = [k for k in _load(args.keystrokes) if k.get("ok", True)]
     overlay = _load(args.overlay)
     metrics = analyze(keystrokes, overlay, within=args.within)
     rate = overlap_rate(overlay, args.line_top, args.line_bottom)

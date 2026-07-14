@@ -40,8 +40,18 @@ with open(logpath, "w") as log:
         # Timestamp on the same wall clock the overlay watcher uses (time.time() ==
         # Date().timeIntervalSince1970), recorded at the moment the key is issued.
         sent = time.time()
-        subprocess.run(["osascript", "-e", script], check=True, capture_output=True)
-        log.write(json.dumps({"t": sent, "i": i, "kind": kind}) + "\n")
+        # System Events keystrokes fail intermittently (transient TCC/focus hiccups). Retry once,
+        # then skip that char rather than aborting a long multi-app benchmark run midway.
+        ok = True
+        for attempt in range(2):
+            r = subprocess.run(["osascript", "-e", script], capture_output=True)
+            if r.returncode == 0:
+                break
+            ok = False
+            time.sleep(0.02)
+        else:
+            pass
+        log.write(json.dumps({"t": sent, "i": i, "kind": kind, "ok": ok}) + "\n")
         time.sleep(delay)
 print("done")
 PY
