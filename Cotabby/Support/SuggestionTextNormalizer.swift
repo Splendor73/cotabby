@@ -27,6 +27,10 @@ enum CompletionSuppressionReason: String, Sendable, Equatable {
     case echoesPrecedingText
     /// Printable characters survived but carried control/replacement glyphs the safety gate rejects.
     case unsafeToInsert
+    /// The completion regurgitated the user's injected writing instructions (a base model echoing
+    /// its conditioning preface on degenerate input) — suppressed so instructions can't leak into
+    /// the field. See `InstructionEchoGuard`.
+    case echoesInstruction
     /// The runtime withheld the completion because its mean per-token log-probability fell below
     /// the confidence floor: the model itself was unsure, and showing nothing beats a guess.
     /// Attributed by the engine (the runtime reports it on `LlamaGenerationOutput`), not by the
@@ -139,6 +143,13 @@ enum SuggestionTextNormalizer {
         normalized = normalized.trimmingCharacters(in: .newlines)
 
         normalized = boundedToLineModeAndWordCap(normalized, request: request)
+
+        // Instruction echo: when the user's writing instructions are injected as prompt context,
+        // a base model on degenerate input can parrot them back. Drop that outright — pasting the
+        // instructions into the field is the one failure worse than showing nothing.
+        if InstructionEchoGuard.echoesInstruction(normalized, instruction: request.extendedContext) {
+            return SuggestionNormalizationResult(text: "", suppression: .echoesInstruction)
+        }
 
         // If the model starts by repeating text that already exists after the caret, we treat the
         // suggestion as unusable. Showing only the remainder often produces confusing mid-word
