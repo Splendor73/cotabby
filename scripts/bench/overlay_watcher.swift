@@ -30,6 +30,7 @@ var dumpOnce = false
 var seconds: Double?
 var pollMs: UInt32 = 5
 var minLayer = 1  // floating overlays sit above the normal window layer (0)
+var minWidth = 32  // skip tiny status/keycap indicators (Cotabby 14x14, Cotypist 28x28)
 
 var args = Array(CommandLine.arguments.dropFirst())
 var index = 0
@@ -41,6 +42,7 @@ while index < args.count {
     case "--seconds": index += 1; seconds = index < args.count ? Double(args[index]) : nil
     case "--poll-ms": index += 1; pollMs = index < args.count ? (UInt32(args[index]) ?? 5) : 5
     case "--min-layer": index += 1; minLayer = index < args.count ? (Int(args[index]) ?? 1) : 1
+    case "--min-width": index += 1; minWidth = index < args.count ? (Int(args[index]) ?? 32) : 32
     default: break
     }
     index += 1
@@ -63,7 +65,7 @@ struct OverlayFrame {
 
 /// The target app's frontmost floating overlay window this instant, if any. Filters by owner-name
 /// substring and window layer (the ghost-text panel floats above layer 0; Settings/popover do not).
-func currentOverlay(ownerSubstring: String, minLayer: Int) -> OverlayFrame? {
+func currentOverlay(ownerSubstring: String, minLayer: Int, minWidth: Int) -> OverlayFrame? {
     let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
     guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
         return nil
@@ -75,8 +77,8 @@ func currentOverlay(ownerSubstring: String, minLayer: Int) -> OverlayFrame? {
         guard layer >= minLayer else { continue }
         guard let boundsDict = window[kCGWindowBounds as String] as? [String: Any],
               let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) else { continue }
-        // A real overlay has positive area; skip zero-size ghost entries.
-        guard bounds.width > 1, bounds.height > 1 else { continue }
+        // Skip tiny status/keycap indicators; the real suggestion overlay is wider.
+        guard Int(bounds.width) >= minWidth, bounds.height > 1 else { continue }
         return OverlayFrame(
             visible: true,
             x: Int(bounds.origin.x), y: Int(bounds.origin.y),
@@ -142,7 +144,7 @@ last = "hidden"
 
 while true {
     if let deadline, Date() >= deadline { break }
-    let frame = currentOverlay(ownerSubstring: owner, minLayer: minLayer)
+    let frame = currentOverlay(ownerSubstring: owner, minLayer: minLayer, minWidth: minWidth)
     let signature: String
     if let frame {
         signature = "\(frame.x),\(frame.y),\(frame.w),\(frame.h)"

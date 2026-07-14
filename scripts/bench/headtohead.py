@@ -43,29 +43,59 @@ def _percentile(sorted_vals, pct):
     return sorted_vals[idx]
 
 
-def analyze(keystrokes, overlay, within=0.6):
-    """Pure scoring. keystrokes/overlay are lists of dicts; returns a metrics dict.
+def _visible_at(transitions, t):
+    """Overlay visibility state at time t, reconstructed from the transition log (state is
+    piecewise-constant between transitions; hidden before the first one)."""
+    times = [e["t"] for e in transitions]
+    pos = bisect.bisect_right(times, t) - 1
+    return pos >= 0 and bool(transitions[pos].get("visible"))
 
-    An overlay "appear/move" is any transition whose `visible` is true. Latency for a keystroke is
-    the wait until the first such appear-event strictly after it and within `within` seconds;
-    keystrokes with no appear in that window are misses (counted for persistence, excluded from the
-    latency percentiles, which describe only shown suggestions).
+
+def analyze(keystrokes, overlay, within=0.6):
+    """Pure scoring. keystrokes/overlay are transition lists; returns a metrics dict.
+
+    Two distinct things, measured from the reconstructed visibility STATE (not raw transitions,
+    which under-count a still card and mis-pair a moving one — the flaw cross-validation exposed):
+
+    * persistence — fraction of keystrokes with the overlay visible at any instant in
+      [t, t+within]. This is the "keeps a suggestion up while I type" property.
+    * appear latency — for keystrokes where the overlay was HIDDEN at the keystroke, the wait until
+      it next becomes visible within `within`. This is how fast a fresh suggestion shows; it does
+      not count keystrokes where a suggestion was already up (those are instant by definition).
     """
-    appears = sorted(e["t"] for e in overlay if e.get("visible"))
+    transitions = sorted(overlay, key=lambda e: e["t"])
+    appears = [e["t"] for e in transitions if e.get("visible")]
+    appears.sort()
     latencies = []
     shown = 0
     for key in keystrokes:
         t = key["t"]
+        # Visible at any instant in [t, t+within]?
+        visible_here = _visible_at(transitions, t)
         pos = bisect.bisect_right(appears, t)
-        if pos < len(appears) and appears[pos] - t <= within:
-            latencies.append((appears[pos] - t) * 1000.0)
+        next_appear = appears[pos] if pos < len(appears) else None
+        appears_soon = next_appear is not None and next_appear - t <= within
+        if visible_here or appears_soon:
             shown += 1
+        # Cold appear-latency: only when hidden at the keystroke and a fresh appearance follows.
+        if not visible_here and appears_soon:
+            latencies.append((next_appear - t) * 1000.0)
     latencies.sort()
     total = len(keystrokes)
+    # Time-to-first-suggestion: from the first keystroke to the first overlay appearance. The
+    # cleanest cross-app latency number — how long a cold field waits for its first suggestion.
+    first_suggestion_ms = None
+    if keystrokes and appears:
+        first_key = min(k["t"] for k in keystrokes)
+        after = [a for a in appears if a >= first_key]
+        if after:
+            first_suggestion_ms = (after[0] - first_key) * 1000.0
     return {
         "keystrokes": total,
         "shown_within_window": shown,
         "persistence": (shown / total) if total else 0.0,
+        "cold_appears": len(latencies),
+        "first_suggestion_ms": first_suggestion_ms,
         "latency_ms_p50": _percentile(latencies, 0.50),
         "latency_ms_p95": _percentile(latencies, 0.95),
         "latency_ms_max": latencies[-1] if latencies else None,
@@ -90,9 +120,10 @@ def overlap_rate(overlay, line_top, line_bottom):
 
 
 def _selftest():
-    # Keystrokes at t=0,1,2,3. Overlay appears 0.1s after k0 (shown), 0.05s after k1 (shown),
-    # never for k2, and 0.9s after k3 (miss: beyond within=0.6). p50 of {100ms,50ms} = 100ms.
-    keystrokes = [{"t": 0.0}, {"t": 1.0}, {"t": 2.0}, {"t": 3.0}]
+    # k0=0.0 hidden→appears 0.10 (shown, cold 100ms); k1=0.2 during the 0.10–0.40 visible span
+    # (shown, NO cold latency — already up); k2=1.0 hidden→appears 1.05 (shown, cold 50ms);
+    # k3=2.0 and k4=3.0 hidden with next appear 3.90 beyond within (misses). shown=3/5.
+    keystrokes = [{"t": 0.0}, {"t": 0.2}, {"t": 1.0}, {"t": 2.0}, {"t": 3.0}]
     overlay = [
         {"t": 0.10, "visible": True, "x": 0, "y": 100, "w": 200, "h": 30},
         {"t": 0.40, "visible": False},
@@ -101,9 +132,10 @@ def _selftest():
         {"t": 3.90, "visible": True, "x": 0, "y": 100, "w": 200, "h": 30},
     ]
     m = analyze(keystrokes, overlay, within=0.6)
-    assert m["keystrokes"] == 4, m
-    assert m["shown_within_window"] == 2, m
-    assert abs(m["persistence"] - 0.5) < 1e-9, m
+    assert m["keystrokes"] == 5, m
+    assert m["shown_within_window"] == 3, m
+    assert abs(m["persistence"] - 0.6) < 1e-9, m
+    assert m["cold_appears"] == 2, m
     assert abs(m["latency_ms_p50"] - 100.0) < 1e-6, m
     assert abs(m["latency_ms_max"] - 100.0) < 1e-6, m
     # Placement: one visible sample at y=100..130 overlaps band 110..120; the y=500 one does not;
@@ -143,6 +175,8 @@ def main():
 
     print(f"=== {args.label} ===")
     print(f"keystrokes            {metrics['keystrokes']}")
+    fst = metrics["first_suggestion_ms"]
+    print(f"time to 1st suggestion {'n/a' if fst is None else f'{fst:.0f} ms'}")
     print(f"persistence           {metrics['persistence'] * 100:.0f}/100 keystrokes had a suggestion up")
     lat50 = metrics["latency_ms_p50"]
     lat95 = metrics["latency_ms_p95"]
