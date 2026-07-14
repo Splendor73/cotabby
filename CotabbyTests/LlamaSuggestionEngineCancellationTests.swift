@@ -35,6 +35,27 @@ final class LlamaSuggestionEngineCancellationTests: XCTestCase {
         XCTAssertEqual(runtime.resetCount, 0)
     }
 
+    func test_cancelledGeneration_stillSeedsCacheHintForNextRequest() async {
+        // Under continuous typing every generation is superseded (cancelled) before it completes.
+        // If the reuse hint is only recorded after an *uncancelled* completion, it never records —
+        // the next keystroke passes a nil hint and re-prefills the whole prompt (hint starvation,
+        // measured at 0% KV reuse). The issued prompt must seed the hint regardless of completion,
+        // so the next request can reuse the KV. Correctness stays with the runtime, which validates
+        // the hint against the real cache before trusting it.
+        let runtime = FakeLlamaRuntime()
+        runtime.generateResult = .failure(CancellationError())
+        let engine = LlamaSuggestionEngine(runtimeManager: runtime)
+
+        _ = try? await engine.generateSuggestion(for: makeRequest(prompt: "hello world"))
+        _ = try? await engine.generateSuggestion(for: makeRequest(prompt: "hello world!"))
+
+        XCTAssertEqual(
+            runtime.capturedHints.last.flatMap { $0 },
+            "hello world".utf8.count,
+            "a cancelled generation must still seed the reuse hint for the next keystroke"
+        )
+    }
+
     func test_genuineRuntimeError_resetsCache_andThrowsUnavailable() async {
         let runtime = FakeLlamaRuntime()
         runtime.generateResult = .failure(LlamaRuntimeError.generationFailed("boom"))
@@ -188,13 +209,17 @@ private struct UnexpectedRuntimeBoom: LocalizedError {
 private final class FakeLlamaRuntime: LlamaRuntimeGenerating {
     var generateResult: Result<LlamaGenerationOutput, Error> = .success(.text(""))
     private(set) var resetCount = 0
+    /// The `cachedPrefixBytes` hint the engine passed on each `generate` call, in order, so a test
+    /// can assert the engine seeds a reuse hint even after a cancelled (never-completed) generation.
+    private(set) var capturedHints: [Int?] = []
 
     func generate(
         prompt: String,
         cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions
     ) async throws -> LlamaGenerationOutput {
-        try generateResult.get()
+        capturedHints.append(cachedPrefixBytes)
+        return try generateResult.get()
     }
 
     func resetPromptCache() {

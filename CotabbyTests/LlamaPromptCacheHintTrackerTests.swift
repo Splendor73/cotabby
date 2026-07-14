@@ -17,7 +17,7 @@ final class LlamaPromptCacheHintTrackerTests: XCTestCase {
 
     func test_cacheHint_returnsCommonPrefixBytesForSameFocusedField() {
         var tracker = LlamaPromptCacheHintTracker()
-        tracker.recordSuccessfulRequest(makeRequest(prompt: "hello"))
+        tracker.recordIssuedRequest(makeRequest(prompt: "hello"))
 
         XCTAssertEqual(
             tracker.cachedPrefixBytes(for: makeRequest(prompt: "hello!")),
@@ -27,7 +27,7 @@ final class LlamaPromptCacheHintTrackerTests: XCTestCase {
 
     func test_cacheHint_invalidatesWhenFocusedFieldChanges() {
         var tracker = LlamaPromptCacheHintTracker()
-        tracker.recordSuccessfulRequest(makeRequest(prompt: "hello", elementIdentifier: "field-a"))
+        tracker.recordIssuedRequest(makeRequest(prompt: "hello", elementIdentifier: "field-a"))
 
         XCTAssertNil(
             tracker.cachedPrefixBytes(for: makeRequest(prompt: "hello!", elementIdentifier: "field-b"))
@@ -37,7 +37,7 @@ final class LlamaPromptCacheHintTrackerTests: XCTestCase {
     func test_cacheHint_prefersStableInputFrameOverUnstableElementIdentifier() {
         var tracker = LlamaPromptCacheHintTracker()
         let fieldFrame = CGRect(x: 10, y: 20, width: 300, height: 44)
-        tracker.recordSuccessfulRequest(
+        tracker.recordIssuedRequest(
             makeRequest(prompt: "hello", elementIdentifier: "field-a", inputFrameRect: fieldFrame)
         )
 
@@ -51,7 +51,7 @@ final class LlamaPromptCacheHintTrackerTests: XCTestCase {
 
     func test_cacheHint_invalidatesWhenSamplingFingerprintChanges() {
         var tracker = LlamaPromptCacheHintTracker()
-        tracker.recordSuccessfulRequest(makeRequest(prompt: "hello", topK: 20))
+        tracker.recordIssuedRequest(makeRequest(prompt: "hello", topK: 20))
 
         XCTAssertNil(tracker.cachedPrefixBytes(for: makeRequest(prompt: "hello!", topK: 40)))
     }

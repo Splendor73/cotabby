@@ -71,7 +71,7 @@ final class LlamaSuggestionEngine {
                 guard !Task.isCancelled else {
                     return
                 }
-                self?.promptCacheHintTracker.recordSuccessfulRequest(request)
+                self?.promptCacheHintTracker.recordIssuedRequest(request)
             } catch {
                 CotabbyLogger.suggestion.debug(
                     "Llama prewarm skipped: \(error.localizedDescription)",
@@ -108,6 +108,15 @@ final class LlamaSuggestionEngine {
 
             let startTime = Date()
             let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
+            // Seed the reuse hint from the ISSUED prompt now — before the cancellable decode below —
+            // not only after an uncancelled completion. Under continuous typing every generation is
+            // superseded before it finishes, so completion-only recording starved the hint and forced
+            // a full prefill on every keystroke (measured: 0% KV reuse). This must run AFTER reading
+            // `cachedPrefixBytes` above (which diffs against the PREVIOUS request); recording first
+            // would diff this prompt against itself. Correctness stays with `LlamaRuntimeCore`, which
+            // re-validates the hint against the real KV cache — a hint for a generation that ends up
+            // cancelled and torn down just rebuilds fresh, exactly as today.
+            promptCacheHintTracker.recordIssuedRequest(request)
             let hintDesc = cachedPrefixBytes.map(String.init) ?? "none"
             CotabbyLogger.suggestion.debug(
                 "Llama generating",
@@ -152,7 +161,6 @@ final class LlamaSuggestionEngine {
             }
             try Task.checkCancellation()
 
-            promptCacheHintTracker.recordSuccessfulRequest(request)
             let rawSuggestion = output.text
             // A confidence-suppressed completion never reaches the normalizer (the runtime already
             // withheld the text); attribute the real reason instead of "the model produced nothing".
@@ -283,9 +291,10 @@ final class LlamaSuggestionEngine {
 
 extension LlamaSuggestionEngine: SuggestionGenerating {}
 
-/// Tracks the last successful llama prompt so the engine can pass a conservative byte-prefix hint
+/// Tracks the last ISSUED llama prompt so the engine can pass a conservative byte-prefix hint
 /// into `LlamaRuntimeManager.generate`. This type deliberately does not own correctness: native KV
-/// state is still validated by `LlamaRuntimeCore` after tokenization.
+/// state is still validated by `LlamaRuntimeCore` after tokenization, so recording a prompt whose
+/// generation is later cancelled is safe — the worst case is a rebuild-fresh, never a wrong reuse.
 struct LlamaPromptCacheHintTracker: Equatable {
     private var lastRequest: CachedRequest?
 
@@ -305,7 +314,10 @@ struct LlamaPromptCacheHintTracker: Equatable {
         return Self.commonPrefixByteCount(lastRequest.promptBytes, nextRequest.promptBytes)
     }
 
-    mutating func recordSuccessfulRequest(_ request: SuggestionRequest) {
+    /// Records `request` as the prompt the runtime's KV cache now reflects. Called when a request is
+    /// ISSUED (not only when it completes): a superseded generation still leaves a reusable prefix,
+    /// and `LlamaRuntimeCore` validates the hint against the real cache regardless of this record.
+    mutating func recordIssuedRequest(_ request: SuggestionRequest) {
         lastRequest = CachedRequest(request: request)
     }
 
